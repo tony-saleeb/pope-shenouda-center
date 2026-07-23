@@ -48,14 +48,13 @@ export async function POST(request: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    // TODO: Trigger WhatsApp delivery here when API is configured
-
     return NextResponse.json({
       success: true,
       message: 'Registrant approved and ticket generated',
     });
   } catch (error) {
     console.error('Approve error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: `خطأ في تنفيذ الموافقة: ${errorMessage}` }, { status: 500 });
   }
 }

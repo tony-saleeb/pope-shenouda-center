@@ -14,7 +14,11 @@ function getAdminApp(): App {
 
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  let rawKey = process.env.FIREBASE_PRIVATE_KEY || '';
+  if (rawKey.startsWith('"') && rawKey.endsWith('"')) {
+    rawKey = rawKey.slice(1, -1);
+  }
+  const privateKey = rawKey.replace(/\\n/g, '\n');
 
   if (!projectId || !clientEmail || !privateKey) {
     console.warn('Firebase Admin SDK: Missing credentials, initializing with project ID only');
