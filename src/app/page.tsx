@@ -10,25 +10,26 @@ export default function HomePage() {
       <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
       {/* Hero Section */}
       <div style={{ textAlign: 'center', maxWidth: '32rem', margin: '0 auto' }}>
-        {/* Church Icon */}
+        {/* Conference Logo Badge */}
         <div style={{
-          width: '5rem',
-          height: '5rem',
-          margin: '0 auto 2rem',
+          width: '6.5rem',
+          height: '6.5rem',
+          margin: '0 auto 1.5rem',
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, var(--color-primary-500), var(--color-accent-500))',
+          background: 'rgba(255, 255, 255, 0.08)',
+          border: '1.5px solid rgba(242, 158, 19, 0.35)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 8px 32px rgba(79, 82, 247, 0.35)',
+          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+          padding: '0.75rem',
+          backdropFilter: 'blur(10px)',
         }}>
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 21V9l-6-6-6 6v12" />
-            <path d="M12 3v6" />
-            <path d="M9 6h6" />
-            <path d="M9 21h6" />
-            <path d="M9 21v-4a3 3 0 0 1 6 0v4" />
-          </svg>
+          <img
+            src="/icon.png"
+            alt="مؤتمر القرن العاشر"
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
         </div>
 
         {/* Title */}
@@ -42,7 +43,7 @@ export default function HomePage() {
           WebkitTextFillColor: 'transparent',
           backgroundClip: 'text',
         }}>
-          مؤتمر الكنيسة
+          مؤتمر القرن العاشر
         </h1>
 
         <p style={{
@@ -59,52 +60,54 @@ export default function HomePage() {
           color: 'rgba(255, 255, 255, 0.35)',
           marginBottom: '3rem',
         }}>
-          التسجيل سريع وسهل — ٤ خطوات فقط
+          احرص على رفع صورة إيصال الدفع البنكي لإتمام التسجيل
         </p>
 
-        {/* CTA Button */}
-        <div style={{ display: 'grid', gap: '0.75rem', maxWidth: '100%', width: '100%' }}>
-          <Link href="/register" style={{ textDecoration: 'none' }}>
-            <button
-              className="btn btn-accent btn-lg btn-full"
-              style={{ fontSize: '1.375rem', letterSpacing: '0.02em' }}
-            >
-              <span>سجّل الآن</span>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
-            </button>
+        {/* Primary Action Card */}
+        <div style={{ display: 'grid', gap: '1rem', marginBottom: '2.5rem' }}>
+          <Link
+            href="/register"
+            className="btn btn-primary btn-lg btn-full"
+            style={{
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.75rem',
+              fontSize: '1.25rem',
+            }}
+          >
+            <span>تسجيل حضور جديد</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
+              <line x1="5" y1="12" x2="19" y2="12" />
+              <polyline points="12 5 19 12 12 19" />
+            </svg>
           </Link>
 
-          <Link href="/ticket/lookup" style={{ textDecoration: 'none' }}>
-            <button
-              className="btn btn-ghost btn-lg btn-full"
-              style={{ fontSize: '1.125rem' }}
-            >
-              <span>تحقق من تذكرتك / حالة طلبك</span>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="11" cy="11" r="8" />
-                <path d="m21 21-4.3-4.3" />
-              </svg>
-            </button>
+          <Link
+            href="/ticket/lookup"
+            className="btn btn-ghost btn-lg btn-full"
+            style={{
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.75rem',
+            }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span>عرض تذكرتي / متابعة حالة الطلب</span>
           </Link>
         </div>
-      </div>
 
-      {/* Footer */}
-      <footer style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        textAlign: 'center',
-        padding: '1rem',
-        fontSize: '0.75rem',
-        color: 'rgba(255, 255, 255, 0.2)',
-      }}>
-        نظام تسجيل الحضور الإلكتروني
-      </footer>
+        {/* Security & Support Note */}
+        <div className="glass-card" style={{ padding: '1rem 1.25rem', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.45)', textAlign: 'center' }}>
+          🔒 نظام التسجيل مؤمّن بالكامل — سيتم التحقق من إيصالك تلقائياً وإصدار تذكرتك فوراً
+        </div>
+      </div>
     </main>
     </>
   );

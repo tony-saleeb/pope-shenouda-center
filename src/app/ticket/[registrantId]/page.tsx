@@ -256,7 +256,7 @@ export default function TicketPage() {
             <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.25rem' }}>
               تذكرة دخول
             </p>
-            <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>مؤتمر الكنيسة</h1>
+            <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>مؤتمر القرن العاشر</h1>
           </div>
 
           {/* QR Code */}
