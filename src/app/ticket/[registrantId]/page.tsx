@@ -15,14 +15,7 @@ export default function TicketPage() {
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [whatsappUrl, setWhatsappUrl] = useState('');
-
-  useEffect(() => {
-    if (registrant) {
-      const text = encodeURIComponent(`🎫 تذكرتي لمؤتمر الكنيسة جاهزة! يمكنك عرضها من الرابط التالي:\n${window.location.origin}/ticket/${registrantId}`);
-      setWhatsappUrl(`https://api.whatsapp.com/send?phone=2${registrant.whatsappNumber}&text=${text}`);
-    }
-  }, [registrant, registrantId]);
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
@@ -57,23 +50,164 @@ export default function TicketPage() {
     fetchData();
   }, [registrantId]);
 
+  /**
+   * Universal download that works on ALL mobile browsers (iOS Safari, Chrome, Android).
+   * Uses canvas to render a full ticket card with QR code + registrant info as a single PNG.
+   */
   const handleDownload = async () => {
-    if (!ticket?.qrImageUrl) return;
+    if (!ticket?.qrImageUrl || !registrant) return;
+    setDownloading(true);
+
     try {
-      const response = await fetch(ticket.qrImageUrl);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `ticket-${registrantId}.png`;
-      document.body.appendChild(a);
-      a.click();
+      // Create a canvas-based ticket image
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas not supported');
+
+      const width = 600;
+      const height = 900;
+      canvas.width = width;
+      canvas.height = height;
+
+      // Background gradient
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, '#1a0f05');
+      gradient.addColorStop(0.5, '#2d1a0a');
+      gradient.addColorStop(1, '#1a0f05');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+
+      // Gold border
+      ctx.strokeStyle = 'rgba(251, 186, 51, 0.4)';
+      ctx.lineWidth = 3;
+      ctx.roundRect(15, 15, width - 30, height - 30, 20);
+      ctx.stroke();
+
+      // Header band
+      const headerGrad = ctx.createLinearGradient(0, 0, width, 120);
+      headerGrad.addColorStop(0, '#b8860b');
+      headerGrad.addColorStop(1, '#d4a017');
+      ctx.fillStyle = headerGrad;
+      ctx.roundRect(30, 30, width - 60, 110, [15, 15, 0, 0]);
+      ctx.fill();
+
+      // Header text
+      ctx.fillStyle = '#1a0f05';
+      ctx.font = 'bold 18px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('تذكرة دخول', width / 2, 70);
+      ctx.font = 'bold 28px Arial, sans-serif';
+      ctx.fillText('مؤتمر الكنيسة', width / 2, 115);
+
+      // QR Code
+      const qrImg = new Image();
+      qrImg.crossOrigin = 'anonymous';
+
+      await new Promise<void>((resolve, reject) => {
+        qrImg.onload = () => resolve();
+        qrImg.onerror = () => reject(new Error('Failed to load QR'));
+        qrImg.src = ticket.qrImageUrl;
+      });
+
+      // White QR background
+      const qrSize = 280;
+      const qrX = (width - qrSize - 40) / 2;
+      const qrY = 170;
+      ctx.fillStyle = '#ffffff';
+      ctx.roundRect(qrX, qrY, qrSize + 40, qrSize + 40, 16);
+      ctx.fill();
+      ctx.drawImage(qrImg, qrX + 20, qrY + 20, qrSize, qrSize);
+
+      // Dashed separator
+      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = 'rgba(251, 186, 51, 0.3)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(50, 530);
+      ctx.lineTo(width - 50, 530);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Registrant info
+      ctx.fillStyle = '#fbba33';
+      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('الاسم', width / 2, 575);
+      ctx.fillStyle = '#f7f0e4';
+      ctx.font = 'bold 26px Arial, sans-serif';
+      ctx.fillText(registrant.fullName, width / 2, 615);
+
+      ctx.fillStyle = '#fbba33';
+      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.fillText('الكنيسة', width / 2, 665);
+      ctx.fillStyle = '#f7f0e4';
+      ctx.font = '22px Arial, sans-serif';
+      ctx.fillText(registrant.church, width / 2, 700);
+
+      ctx.fillStyle = '#fbba33';
+      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.fillText('رقم الموبايل', width / 2, 750);
+      ctx.fillStyle = '#f7f0e4';
+      ctx.font = '20px Arial, sans-serif';
+      ctx.fillText(registrant.phoneNumber, width / 2, 785);
+
+      // Footer
+      ctx.fillStyle = 'rgba(251, 186, 51, 0.2)';
+      ctx.font = '12px Arial, sans-serif';
+      ctx.fillText('يرجى إظهار هذه التذكرة عند الدخول', width / 2, 850);
+
+      // Convert to blob and download
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          // Fallback: open QR in new tab
+          window.open(ticket.qrImageUrl, '_blank');
+          setDownloading(false);
+          return;
+        }
+
+        const url = URL.createObjectURL(blob);
+
+        // Check if Web Share API is available (for iOS Safari and modern mobile browsers)
+        if (navigator.share && navigator.canShare) {
+          const file = new File([blob], `ticket-${registrantId}.png`, { type: 'image/png' });
+          const shareData = { files: [file] };
+          
+          if (navigator.canShare(shareData)) {
+            navigator.share(shareData)
+              .catch(() => {
+                // User cancelled share — fallback to download
+                fallbackDownload(url);
+              })
+              .finally(() => setDownloading(false));
+            return;
+          }
+        }
+
+        // Standard download for desktop and older Android
+        fallbackDownload(url);
+        setDownloading(false);
+      }, 'image/png');
+    } catch {
+      // Ultimate fallback: open QR image in new tab
+      if (ticket?.qrImageUrl) {
+        window.open(ticket.qrImageUrl, '_blank');
+      }
+      setDownloading(false);
+    }
+  };
+
+  const fallbackDownload = (url: string) => {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ticket-${registrantId}.png`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    // Clean up after a short delay
+    setTimeout(() => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-    } catch {
-      // Fallback: open in new tab
-      window.open(ticket.qrImageUrl, '_blank');
-    }
+    }, 1000);
   };
 
   if (loading) {
@@ -198,36 +332,38 @@ export default function TicketPage() {
             </div>
           )}
 
-          {/* Action Buttons */}
+          {/* Download Button (user-facing) */}
           {ticket?.qrImageUrl && (
             <div style={{ display: 'grid', gap: '0.75rem' }}>
-              {whatsappUrl && (
-                <a
-                  href={whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ textDecoration: 'none', display: 'block' }}
-                >
-                  <button className="btn btn-success btn-full">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
-                    </svg>
-                    <span>إرسال التذكرة على واتساب</span>
-                  </button>
-                </a>
-              )}
-              
               <button
                 className="btn btn-accent btn-full"
                 onClick={handleDownload}
+                disabled={downloading}
+                style={{
+                  opacity: downloading ? 0.7 : 1,
+                  cursor: downloading ? 'wait' : 'pointer',
+                }}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" x2="12" y1="15" y2="3" />
-                </svg>
-                <span>تحميل التذكرة</span>
+                {downloading ? (
+                  <>
+                    <span className="spinner" style={{ width: '1.25rem', height: '1.25rem', borderTopColor: 'currentColor' }} />
+                    <span>جاري التحميل...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" x2="12" y1="15" y2="3" />
+                    </svg>
+                    <span>تحميل التذكرة</span>
+                  </>
+                )}
               </button>
+
+              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem', textAlign: 'center' }}>
+                يرجى إظهار هذه التذكرة عند الدخول
+              </p>
             </div>
           )}
         </div>

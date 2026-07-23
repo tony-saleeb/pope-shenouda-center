@@ -21,6 +21,7 @@ export default function ReviewPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [approvedItems, setApprovedItems] = useState<Set<string>>(new Set());
 
   const PAGE_SIZE = 20;
 
@@ -79,7 +80,13 @@ export default function ReviewPage() {
       });
 
       if (response.ok) {
-        setItems((prev) => prev.filter((item) => item.id !== registrantId));
+        if (action === 'approve') {
+          // Show WhatsApp share button instead of removing the card
+          setApprovedItems((prev) => new Set(prev).add(registrantId));
+        } else {
+          // For reject, remove the card immediately
+          setItems((prev) => prev.filter((item) => item.id !== registrantId));
+        }
       } else {
         const errData = await response.json();
         alert(errData.error || `حدث خطأ أثناء ${action === 'approve' ? 'الموافقة' : 'الرفض'}`);
@@ -90,6 +97,29 @@ export default function ReviewPage() {
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const getWhatsAppUrl = (item: ReviewItem) => {
+    const ticketUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/ticket/${item.id}`;
+    const text = encodeURIComponent(
+      `✅ مبروك يا ${item.data.fullName}!\n\n` +
+      `تم قبول تسجيلك في مؤتمر الكنيسة بنجاح 🎉\n\n` +
+      `📲 رابط تذكرتك:\n${ticketUrl}\n\n` +
+      `يرجى إظهار التذكرة عند الدخول.`
+    );
+    const phone = item.data.whatsappNumber.startsWith('0')
+      ? `2${item.data.whatsappNumber}`
+      : item.data.whatsappNumber;
+    return `https://api.whatsapp.com/send?phone=${phone}&text=${text}`;
+  };
+
+  const dismissApproved = (registrantId: string) => {
+    setItems((prev) => prev.filter((item) => item.id !== registrantId));
+    setApprovedItems((prev) => {
+      const next = new Set(prev);
+      next.delete(registrantId);
+      return next;
+    });
   };
 
   const getConfidenceBadge = (confidence: string | null) => {
@@ -285,55 +315,114 @@ export default function ReviewPage() {
                 )}
               </div>
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
-                <button
-                  className="btn btn-success"
-                  onClick={() => handleAction(item.id, 'approve')}
-                  disabled={actionLoading === item.id}
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem 1.25rem',
-                    fontSize: '0.9375rem',
+              {/* Action Buttons or WhatsApp Share */}
+              {approvedItems.has(item.id) ? (
+                /* Approved — show WhatsApp share + dismiss */
+                <div style={{ marginTop: '1.5rem' }}>
+                  <div style={{
+                    padding: '0.75rem 1rem',
+                    background: 'rgba(16, 185, 129, 0.12)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    borderRadius: '0.75rem',
+                    marginBottom: '0.75rem',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'center',
                     gap: '0.5rem',
-                  }}
-                >
-                  {actionLoading === item.id ? (
-                    <span className="spinner" />
-                  ) : (
-                    <>
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                      <span>موافقة على الطلب</span>
-                    </>
-                  )}
-                </button>
+                    justifyContent: 'center',
+                  }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    <span style={{ color: '#10b981', fontWeight: 700, fontSize: '0.9375rem' }}>تمت الموافقة بنجاح ✓</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    <a
+                      href={getWhatsAppUrl(item)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ flex: 2, textDecoration: 'none', display: 'block' }}
+                    >
+                      <button className="btn btn-success btn-full" style={{
+                        padding: '0.75rem',
+                        fontSize: '0.9375rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        width: '100%',
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+                        </svg>
+                        <span>إرسال التذكرة على واتساب</span>
+                      </button>
+                    </a>
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => dismissApproved(item.id)}
+                      style={{
+                        flex: 1,
+                        padding: '0.75rem',
+                        border: '1px solid rgba(242, 158, 19, 0.2)',
+                        color: 'rgba(247, 240, 228, 0.6)',
+                        fontSize: '0.875rem',
+                      }}
+                    >
+                      تخطي
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Not yet acted on — show approve/reject */
+                <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+                  <button
+                    className="btn btn-success"
+                    onClick={() => handleAction(item.id, 'approve')}
+                    disabled={actionLoading === item.id}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem 1.25rem',
+                      fontSize: '0.9375rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    {actionLoading === item.id ? (
+                      <span className="spinner" />
+                    ) : (
+                      <>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>موافقة على الطلب</span>
+                      </>
+                    )}
+                  </button>
 
-                <button
-                  className="btn btn-error"
-                  onClick={() => handleAction(item.id, 'reject')}
-                  disabled={actionLoading === item.id}
-                  style={{
-                    flex: 1,
-                    padding: '0.75rem 1.25rem',
-                    fontSize: '0.9375rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.5rem',
-                  }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                  <span>رفض الطلب</span>
-                </button>
-              </div>
+                  <button
+                    className="btn btn-error"
+                    onClick={() => handleAction(item.id, 'reject')}
+                    disabled={actionLoading === item.id}
+                    style={{
+                      flex: 1,
+                      padding: '0.75rem 1.25rem',
+                      fontSize: '0.9375rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                    <span>رفض الطلب</span>
+                  </button>
+                </div>
+              )}
             </div>
           ))}
 

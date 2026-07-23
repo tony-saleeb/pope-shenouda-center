@@ -6,6 +6,7 @@ import {
   startAfter, where, QueryDocumentSnapshot,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
+import { useAuth } from '@/lib/auth/context';
 import type { Registrant, RegistrantStatus } from '@/lib/types';
 
 interface RegistrantItem {
@@ -31,12 +32,15 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 ];
 
 export default function RegistrantsPage() {
+  const { user } = useAuth();
   const [items, setItems] = useState<RegistrantItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const PAGE_SIZE = 25;
 
   const fetchItems = useCallback(async (after?: QueryDocumentSnapshot) => {
@@ -81,6 +85,35 @@ export default function RegistrantsPage() {
     setLastDoc(null);
     fetchItems();
   }, [statusFilter, fetchItems]);
+
+  const handleDelete = async (registrantId: string) => {
+    if (!user) return;
+    setDeleteLoading(registrantId);
+    try {
+      const token = await user.getIdToken(true);
+      const response = await fetch('/api/admin/delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ registrantId }),
+      });
+
+      if (response.ok) {
+        setItems((prev) => prev.filter((item) => item.id !== registrantId));
+        setConfirmDelete(null);
+      } else {
+        const errData = await response.json();
+        alert(errData.error || 'حدث خطأ أثناء حذف المسجّل');
+      }
+    } catch (error) {
+      console.error('Error deleting:', error);
+      alert('حدث خطأ في الاتصال بالسيرفر');
+    } finally {
+      setDeleteLoading(null);
+    }
+  };
 
   const filteredItems = searchTerm
     ? items.filter(
@@ -169,6 +202,95 @@ export default function RegistrantsPage() {
         </select>
       </div>
 
+      {/* Delete Confirmation Modal */}
+      {confirmDelete && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(0, 0, 0, 0.7)',
+          backdropFilter: 'blur(6px)',
+          padding: '1rem',
+        }}>
+          <div className="glass-card" style={{
+            padding: '2rem',
+            maxWidth: '26rem',
+            width: '100%',
+            textAlign: 'center',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+          }}>
+            <div style={{
+              width: '4rem',
+              height: '4rem',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+            }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+            </div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.5rem' }}>
+              تأكيد حذف المسجّل
+            </h3>
+            <p style={{ color: 'rgba(247, 240, 228, 0.6)', fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+              سيتم حذف بيانات المسجّل والتذكرة المرتبطة نهائياً.
+            </p>
+            <p style={{ color: '#ef4444', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '1.5rem' }}>
+              هذا الإجراء لا يمكن التراجع عنه!
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                className="btn btn-ghost"
+                onClick={() => setConfirmDelete(null)}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  border: '1px solid rgba(242, 158, 19, 0.25)',
+                  color: '#f7f0e4',
+                }}
+              >
+                إلغاء
+              </button>
+              <button
+                className="btn btn-full"
+                onClick={() => handleDelete(confirmDelete)}
+                disabled={deleteLoading === confirmDelete}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem',
+                  background: 'rgba(239, 68, 68, 0.8)',
+                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: deleteLoading === confirmDelete ? 'wait' : 'pointer',
+                  opacity: deleteLoading === confirmDelete ? 0.6 : 1,
+                }}
+              >
+                {deleteLoading === confirmDelete ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <span className="spinner" style={{ width: '1rem', height: '1rem', borderTopColor: '#fff' }} />
+                    جاري الحذف...
+                  </span>
+                ) : (
+                  'حذف نهائي'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Table Section */}
       {loading ? (
         <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
@@ -214,6 +336,7 @@ export default function RegistrantsPage() {
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>حالة الطلب</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>مرجع الإيصال</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>تاريخ التسجيل</th>
+                  <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'center', fontWeight: 700 }}>إجراءات</th>
                 </tr>
               </thead>
               <tbody>
@@ -244,6 +367,37 @@ export default function RegistrantsPage() {
                         {item.data.createdAt?.toDate?.()
                           ? new Date(item.data.createdAt.toDate()).toLocaleDateString('ar-EG')
                           : '—'}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                        <button
+                          onClick={() => setConfirmDelete(item.id)}
+                          title="حذف المسجّل"
+                          style={{
+                            background: 'rgba(239, 68, 68, 0.12)',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            borderRadius: '0.5rem',
+                            padding: '0.5rem',
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s ease',
+                            color: '#ef4444',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.25)';
+                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)';
+                            e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
+                          }}
+                        >
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" />
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
                       </td>
                     </tr>
                   );
