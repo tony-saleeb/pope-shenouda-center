@@ -68,7 +68,7 @@ export default function ReviewPage() {
     setActionLoading(registrantId);
 
     try {
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(true);
       const response = await fetch(`/api/admin/${action}`, {
         method: 'POST',
         headers: {
@@ -80,9 +80,13 @@ export default function ReviewPage() {
 
       if (response.ok) {
         setItems((prev) => prev.filter((item) => item.id !== registrantId));
+      } else {
+        const errData = await response.json();
+        alert(errData.error || `حدث خطأ أثناء ${action === 'approve' ? 'الموافقة' : 'الرفض'}`);
       }
     } catch (error) {
       console.error(`Error ${action}ing:`, error);
+      alert('حدث خطأ في الاتصال بالسيرفر');
     } finally {
       setActionLoading(null);
     }

@@ -43,7 +43,10 @@ export async function requireRole(
     };
   }
 
-  const userRole = decodedToken.role as StaffRole | undefined;
+  // Extract role from custom claims, with fallback for primary admin email
+  const userEmail = decodedToken.email?.toLowerCase();
+  const isPrimaryAdmin = userEmail === 'tonysaleeb23@gmail.com';
+  const userRole = (decodedToken.role as StaffRole | undefined) || (isPrimaryAdmin ? 'admin' : undefined);
   const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
 
   if (!userRole || !roles.includes(userRole)) {

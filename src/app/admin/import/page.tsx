@@ -20,7 +20,7 @@ export default function ImportPage() {
     setResult(null);
 
     try {
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(true);
       const response = await fetch('/api/admin/import', {
         method: 'POST',
         headers: {
@@ -53,7 +53,7 @@ export default function ImportPage() {
     setResult(null);
 
     try {
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(true);
       const response = await fetch('/api/admin/import', {
         method: 'POST',
         headers: {
@@ -94,7 +94,7 @@ export default function ImportPage() {
     setResult(null);
 
     try {
-      const token = await user.getIdToken();
+      const token = await user.getIdToken(true);
       const response = await fetch('/api/admin/reconcile', {
         method: 'POST',
         headers: {
