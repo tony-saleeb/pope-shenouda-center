@@ -102,8 +102,7 @@ export default function ReviewPage() {
   const getWhatsAppUrl = (item: ReviewItem) => {
     const ticketUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/ticket/${item.id}`;
     const text = encodeURIComponent(
-      `✅ مبروك يا ${item.data.fullName}!\n\n` +
-      `تم قبول تسجيلك في مؤتمر الكنيسة بنجاح 🎉\n\n` +
+      `تم قبول تسجيلك في مؤتمر القرن العاشر بنجاح 🎉\n\n` +
       `📲 رابط تذكرتك:\n${ticketUrl}\n\n` +
       `يرجى إظهار التذكرة عند الدخول.`
     );
