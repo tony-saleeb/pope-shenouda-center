@@ -8,9 +8,12 @@ export const metadata: Metadata = {
   description:
     "نظام تسجيل الحضور وحجز التذاكر لمؤتمر القرن العاشر — سجّل الآن واحصل على تذكرتك الإلكترونية",
   icons: {
-    icon: "/icon.png",
-    shortcut: "/icon.png",
-    apple: "/icon.png",
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    shortcut: ['/favicon.ico'],
+    apple: [{ url: '/icon.png' }],
   },
 };
 
