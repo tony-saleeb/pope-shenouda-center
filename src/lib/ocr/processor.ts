@@ -47,15 +47,27 @@ export async function processRegistrantOcr(registrantId: string): Promise<{
       return { success: false, status: 'failed', error: 'No screenshot URL' };
     }
 
-    // 2. Download image
-    const response = await fetch(screenshotUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to download image (HTTP ${response.status})`);
-    }
+    // 2. Obtain image buffer (from Base64 Data URI or HTTP URL)
+    let buffer: Buffer;
+    let contentType = 'image/jpeg';
 
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    if (screenshotUrl.startsWith('data:')) {
+      const matches = screenshotUrl.match(/^data:(.+);base64,(.+)$/);
+      if (matches) {
+        contentType = matches[1];
+        buffer = Buffer.from(matches[2], 'base64');
+      } else {
+        throw new Error('Invalid base64 data URI format');
+      }
+    } else {
+      const response = await fetch(screenshotUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to download image (HTTP ${response.status})`);
+      }
+      contentType = response.headers.get('content-type') || 'image/jpeg';
+      const arrayBuffer = await response.arrayBuffer();
+      buffer = Buffer.from(arrayBuffer);
+    }
 
     // 3. Extract data via Gemini
     const ocrResult = await extractReceiptData(buffer, contentType);
