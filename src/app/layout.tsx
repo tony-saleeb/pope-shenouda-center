@@ -4,9 +4,14 @@ import { AuthProvider } from "@/lib/auth/context";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
 
 export const metadata: Metadata = {
-  title: "تسجيل الحضور | مؤتمر الكنيسة",
+  title: "مؤتمر القرن العاشر | حجز وتأكيد التذاكر",
   description:
-    "نظام تسجيل الحضور وحجز التذاكر لمؤتمر الكنيسة — سجّل الآن واحصل على تذكرتك الإلكترونية",
+    "نظام تسجيل الحضور وحجز التذاكر لمؤتمر القرن العاشر — سجّل الآن واحصل على تذكرتك الإلكترونية",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export const viewport = {
