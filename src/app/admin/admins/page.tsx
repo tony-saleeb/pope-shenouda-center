@@ -121,8 +121,11 @@ export default function AdminsPage() {
         paddingBottom: '1.25rem',
       }}>
         <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.25rem' }}>
-            إدارة مسؤولين النظام (الأدمن) 👑
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <span>إدارة مسؤولين النظام (الأدمن)</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
           </h1>
           <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
             إضافة وإلغاء صلاحيات حسابات المسؤولين المسموح لهم بإدارة المؤتمر والطلبات
@@ -159,8 +162,14 @@ export default function AdminsPage() {
           marginBottom: '1.5rem',
           fontWeight: 700,
           fontSize: '0.9375rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
         }}>
-          ✓ {success}
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+          <span>{success}</span>
         </div>
       )}
 
@@ -184,14 +193,20 @@ export default function AdminsPage() {
             border: '1px solid rgba(242, 158, 19, 0.3)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f7f0e4' }}>
-                إضافة أدمن جديد 👑
+              <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f7f0e4', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                </svg>
+                <span>إضافة أدمن جديد</span>
               </h2>
               <button
                 onClick={() => setShowAddModal(false)}
-                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.25rem' }}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                ✕
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
               </button>
             </div>
 
@@ -205,8 +220,16 @@ export default function AdminsPage() {
                 fontSize: '0.8125rem',
                 marginBottom: '1rem',
                 fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
               }}>
-                ⚠️ {error}
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                <span>{error}</span>
               </div>
             )}
 
@@ -362,24 +385,37 @@ export default function AdminsPage() {
 
                     <td style={{ padding: '1rem 1.25rem' }}>
                       {adm.isPrimary ? (
-                        <span className="badge badge-approved" style={{ background: 'rgba(242, 158, 19, 0.2)', color: '#fbba33', border: '1px solid rgba(242, 158, 19, 0.4)' }}>
-                          👑 أدمن رئيسي
+                        <span className="badge badge-approved" style={{ background: 'rgba(242, 158, 19, 0.2)', color: '#fbba33', border: '1px solid rgba(242, 158, 19, 0.4)', gap: '0.375rem' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                          </svg>
+                          <span>أدمن رئيسي</span>
                         </span>
                       ) : (
-                        <span className="badge badge-approved">
-                          أدمن معتمد
+                        <span className="badge badge-approved" style={{ gap: '0.375rem' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <span>أدمن معتمد</span>
                         </span>
                       )}
                     </td>
 
                     <td style={{ padding: '1rem 1.25rem' }}>
                       {adm.hasAuthAccount ? (
-                        <span style={{ color: '#10b981', fontSize: '0.875rem', fontWeight: 600 }}>
-                          ✓ مفعل في النظام
+                        <span style={{ color: '#10b981', fontSize: '0.875rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <span>مفعل في النظام</span>
                         </span>
                       ) : (
-                        <span style={{ color: '#fbba33', fontSize: '0.875rem', fontWeight: 600 }}>
-                          ⏳ بانتظار إنشاء كلمة السر
+                        <span style={{ color: '#fbba33', fontSize: '0.875rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                          </svg>
+                          <span>بانتظار إنشاء كلمة السر</span>
                         </span>
                       )}
                     </td>

@@ -16,7 +16,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/admin',
     label: 'الإحصائيات',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="20" x2="18" y2="10" />
         <line x1="12" y1="20" x2="12" y2="4" />
         <line x1="6" y1="20" x2="6" y2="14" />
@@ -27,7 +27,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/admin/review',
     label: 'المراجعة',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
         <circle cx="12" cy="12" r="3" />
       </svg>
@@ -37,7 +37,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/admin/registrants',
     label: 'المسجّلين',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
         <circle cx="9" cy="7" r="4" />
         <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -49,7 +49,7 @@ const NAV_ITEMS: NavItem[] = [
     href: '/admin/import',
     label: 'كشف الحساب',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="5" width="20" height="14" rx="2" />
         <line x1="2" y1="10" x2="22" y2="10" />
       </svg>
@@ -57,18 +57,18 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: '/admin/admins',
-    label: 'الأدمن 👑',
+    label: 'الأدمن',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
       </svg>
     ),
   },
   {
     href: '/scan',
-    label: 'الماسح 📷',
+    label: 'الماسح',
     icon: (active) => (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 7V5a2 2 0 0 1 2-2h2" />
         <path d="M17 3h2a2 2 0 0 1 2 2v2" />
         <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
@@ -118,39 +118,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         position: 'sticky',
         top: 0,
         zIndex: 40,
-        background: 'rgba(19, 12, 5, 0.88)',
-        backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(242, 158, 19, 0.18)',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.4)',
-        padding: '0 1rem',
+        background: 'rgba(19, 12, 5, 0.92)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(242, 158, 19, 0.2)',
+        boxShadow: '0 4px 25px rgba(0, 0, 0, 0.5)',
+        padding: '0 0.875rem',
       }}>
         <div style={{
-          maxWidth: '80rem',
+          maxWidth: '82rem',
           margin: '0 auto',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          height: '4rem',
+          height: '3.75rem',
+          gap: '0.5rem',
         }}>
           {/* Logo / Brand */}
-          <Link href="/admin" style={{ textDecoration: 'none', color: '#f7f0e4', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          <Link href="/admin" style={{ textDecoration: 'none', color: '#f7f0e4', display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
             <div style={{
-              width: '2.25rem',
-              height: '2.25rem',
-              borderRadius: '0.625rem',
-              background: 'linear-gradient(135deg, rgba(242, 158, 19, 0.25), rgba(179, 130, 63, 0.15))',
-              border: '1px solid rgba(242, 158, 19, 0.3)',
+              width: '2.125rem',
+              height: '2.125rem',
+              borderRadius: '0.5rem',
+              background: 'linear-gradient(135deg, rgba(242, 158, 19, 0.3), rgba(179, 130, 63, 0.15))',
+              border: '1px solid rgba(242, 158, 19, 0.35)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2L2 7l10 5 10-5-10-5z" />
                 <path d="M2 17l10 5 10-5" />
                 <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
-            <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#f7f0e4' }}>
+            <span style={{ fontSize: '1rem', fontWeight: 800, color: '#f7f0e4', whiteSpace: 'nowrap' }}>
               لوحة التحكم
             </span>
           </Link>
@@ -159,11 +161,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="desktop-nav-tabs" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
             <div style={{
               display: 'flex',
-              gap: '0.375rem',
-              background: 'rgba(12, 7, 3, 0.5)',
-              padding: '0.25rem 0.375rem',
+              gap: '0.25rem',
+              background: 'rgba(12, 7, 3, 0.6)',
+              padding: '0.25rem',
               borderRadius: '0.75rem',
-              border: '1px solid rgba(242, 158, 19, 0.12)',
+              border: '1px solid rgba(242, 158, 19, 0.15)',
             }}>
               {NAV_ITEMS.map((item) => {
                 const isActive = pathname === item.href;
@@ -173,9 +175,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     href={item.href}
                     style={{
                       textDecoration: 'none',
-                      padding: '0.5rem 0.875rem',
+                      padding: '0.45rem 0.75rem',
                       borderRadius: '0.5rem',
-                      fontSize: '0.875rem',
+                      fontSize: '0.8125rem',
                       fontWeight: isActive ? 700 : 500,
                       color: isActive ? '#fbba33' : 'rgba(247, 240, 228, 0.65)',
                       background: isActive
@@ -186,7 +188,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       transition: 'all 0.2s ease',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.5rem',
+                      gap: '0.4rem',
                       whiteSpace: 'nowrap',
                     }}
                   >
@@ -198,8 +200,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
-          {/* Right Action Bar */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          {/* Right Action Bar (Mobile & Desktop) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+            {/* Passcode Badge - Compact single line */}
             <Link
               href="/scan"
               style={{ textDecoration: 'none' }}
@@ -208,17 +211,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.375rem',
-                background: 'rgba(242, 158, 19, 0.12)',
-                border: '1px solid rgba(242, 158, 19, 0.3)',
-                padding: '0.45rem 0.75rem',
+                gap: '0.35rem',
+                background: 'rgba(242, 158, 19, 0.14)',
+                border: '1px solid rgba(242, 158, 19, 0.35)',
+                padding: '0.35rem 0.625rem',
                 borderRadius: '0.5rem',
-                fontSize: '0.8125rem',
+                fontSize: '0.75rem',
                 color: '#fbba33',
                 fontWeight: 700,
+                whiteSpace: 'nowrap',
+                lineHeight: 1,
               }}>
-                <span>🔑 كود الماسح:</span>
-                <span style={{ fontFamily: 'monospace', letterSpacing: '1px', color: '#fff' }}>102030</span>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+                </svg>
+                <span className="desktop-only-text" style={{ fontSize: '0.75rem' }}>كود الماسح:</span>
+                <span style={{ fontFamily: 'monospace', letterSpacing: '1px', color: '#ffffff', fontWeight: 800 }}>102030</span>
               </div>
             </Link>
 
@@ -228,20 +236,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               title="تسجيل الخروج"
               style={{
                 background: 'rgba(239, 68, 68, 0.12)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
                 color: '#f87171',
-                padding: '0.45rem 0.75rem',
+                padding: '0.375rem 0.625rem',
                 borderRadius: '0.5rem',
-                fontSize: '0.8125rem',
+                fontSize: '0.75rem',
                 fontWeight: 600,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.375rem',
+                gap: '0.35rem',
                 transition: 'all 0.2s ease',
+                whiteSpace: 'nowrap',
+                lineHeight: 1,
               }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
                 <polyline points="16 17 21 12 16 7" />
                 <line x1="21" y1="12" x2="9" y2="12" />
@@ -253,7 +263,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </nav>
 
       {/* Main Content Area */}
-      <main className="admin-container page-enter" style={{ paddingTop: '1.5rem', paddingBottom: '5rem' }}>
+      <main className="admin-container page-enter" style={{ paddingTop: '1.5rem', paddingBottom: '5.5rem' }}>
         {children}
       </main>
 
@@ -264,11 +274,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         left: 0,
         right: 0,
         zIndex: 50,
-        background: 'rgba(19, 12, 5, 0.94)',
+        background: 'rgba(19, 12, 5, 0.95)',
         backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
         borderTop: '1px solid rgba(242, 158, 19, 0.25)',
         boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.5)',
-        padding: '0.375rem 0.5rem calc(0.375rem + env(safe-area-inset-bottom))',
+        padding: '0.375rem 0.25rem calc(0.375rem + env(safe-area-inset-bottom))',
         display: 'none',
       }}>
         <div style={{
@@ -287,9 +298,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.25rem',
-                  padding: '0.375rem 0.5rem',
-                  borderRadius: '0.625rem',
+                  gap: '0.2rem',
+                  padding: '0.35rem 0.25rem',
+                  borderRadius: '0.5rem',
                   flex: 1,
                   textAlign: 'center',
                   background: isActive ? 'rgba(242, 158, 19, 0.15)' : 'transparent',
@@ -298,7 +309,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 }}
               >
                 {item.icon(isActive)}
-                <span style={{ fontSize: '0.6875rem', fontWeight: isActive ? 700 : 500 }}>
+                <span style={{ fontSize: '0.625rem', fontWeight: isActive ? 700 : 500, whiteSpace: 'nowrap' }}>
                   {item.label}
                 </span>
               </Link>

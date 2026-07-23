@@ -33,7 +33,13 @@ function ConfigWarning() {
         width: '100%',
         textAlign: 'center',
       }}>
-        <p style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>⚠️</p>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+          <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </div>
         <h1 style={{ fontSize: '1.625rem', fontWeight: 800, marginBottom: '0.5rem', color: 'var(--color-accent-400)' }}>
           إعدادات مشروعك غير مكتملة
         </h1>

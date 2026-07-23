@@ -225,7 +225,12 @@ export default function TicketPage() {
     return (
       <main style={{ position: 'relative', zIndex: 1, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
         <div className="glass-card" style={{ padding: '2rem', textAlign: 'center', maxWidth: '28rem' }}>
-          <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎫</p>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2z" />
+              <path d="M13 5v14" />
+            </svg>
+          </div>
           <p style={{ fontSize: '1.125rem', fontWeight: 600 }}>{error}</p>
           <Link href={`/status/${registrantId}`} className="btn btn-primary" style={{ marginTop: '1.5rem', textDecoration: 'none', display: 'inline-flex' }}>
             التحقق من الحالة

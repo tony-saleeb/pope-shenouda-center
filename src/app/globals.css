@@ -681,7 +681,8 @@ body {
 
 /* ─── Mobile Responsiveness Adjustments ───────────────────────────── */
 @media (max-width: 640px) {
-  .hidden-mobile {
+  .hidden-mobile,
+  .desktop-only-text {
     display: none !important;
   }
 
