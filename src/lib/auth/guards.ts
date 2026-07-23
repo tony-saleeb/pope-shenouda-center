@@ -1,6 +1,24 @@
 import { NextRequest } from 'next/server';
-import { getAdminAuth } from '@/lib/firebase/admin';
+import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
 import type { StaffRole } from '@/lib/types';
+
+export const PRIMARY_ADMIN_EMAIL = 'tonysaleeb23@gmail.com';
+
+/**
+ * Check if a given email belongs to an authorized admin
+ */
+export async function isEmailAdmin(email: string): Promise<boolean> {
+  const normalized = email.toLowerCase().trim();
+  if (normalized === PRIMARY_ADMIN_EMAIL.toLowerCase()) return true;
+  try {
+    const db = getAdminDb();
+    const docSnap = await db.collection('admins').doc(normalized).get();
+    return docSnap.exists;
+  } catch (err) {
+    console.error('Error checking admin email:', err);
+    return false;
+  }
+}
 
 /**
  * Extract and verify the Firebase ID token from an Authorization header.
@@ -28,7 +46,7 @@ export async function requireRole(
   request: NextRequest,
   requiredRole: StaffRole | StaffRole[]
 ): Promise<
-  | { authorized: true; uid: string; role: StaffRole }
+  | { authorized: true; uid: string; role: StaffRole; email?: string }
   | { authorized: false; response: Response }
 > {
   const decodedToken = await verifyAuthToken(request);
@@ -43,10 +61,10 @@ export async function requireRole(
     };
   }
 
-  // Extract role from custom claims, with fallback for primary admin email
+  // Extract role from custom claims or email lookup in Firestore admins collection
   const userEmail = decodedToken.email?.toLowerCase();
-  const isPrimaryAdmin = userEmail === 'tonysaleeb23@gmail.com';
-  const userRole = (decodedToken.role as StaffRole | undefined) || (isPrimaryAdmin ? 'admin' : undefined);
+  const isAdminByEmail = userEmail ? await isEmailAdmin(userEmail) : false;
+  const userRole = (decodedToken.role as StaffRole | undefined) || (isAdminByEmail ? 'admin' : undefined);
   const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
 
   if (!userRole || !roles.includes(userRole)) {
@@ -59,7 +77,7 @@ export async function requireRole(
     };
   }
 
-  return { authorized: true, uid: decodedToken.uid, role: userRole };
+  return { authorized: true, uid: decodedToken.uid, role: userRole, email: decodedToken.email };
 }
 
 /** Shorthand: require admin role */

@@ -13,7 +13,8 @@ import {
   signOut as firebaseSignOut,
   User,
 } from 'firebase/auth';
-import { auth, isFirebaseConfigured } from '@/lib/firebase/client';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db, isFirebaseConfigured } from '@/lib/firebase/client';
 import type { StaffRole } from '@/lib/types';
 
 interface AuthContextValue {
@@ -32,6 +33,29 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
 });
 
+async function getUserRole(user: User): Promise<StaffRole | null> {
+  try {
+    const tokenResult = await user.getIdTokenResult();
+    if (tokenResult.claims.role) {
+      return tokenResult.claims.role as StaffRole;
+    }
+
+    const email = user.email?.toLowerCase();
+    if (!email) return null;
+
+    if (email === 'tonysaleeb23@gmail.com') return 'admin';
+
+    // Check Firestore admins collection
+    const adminDoc = await getDoc(doc(db, 'admins', email));
+    if (adminDoc.exists()) {
+      return 'admin';
+    }
+  } catch (err) {
+    console.error('Error determining user role:', err);
+  }
+  return null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [role, setRole] = useState<StaffRole | null>(null);
@@ -46,9 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        // Extract role from custom claims
-        const tokenResult = await firebaseUser.getIdTokenResult();
-        setRole((tokenResult.claims.role as StaffRole) || null);
+        const userRole = await getUserRole(firebaseUser);
+        setRole(userRole);
       } else {
         setUser(null);
         setRole(null);
@@ -61,8 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     const credential = await signInWithEmailAndPassword(auth, email, password);
-    const tokenResult = await credential.user.getIdTokenResult();
-    setRole((tokenResult.claims.role as StaffRole) || null);
+    const userRole = await getUserRole(credential.user);
+    setRole(userRole);
   };
 
   const signOut = async () => {
