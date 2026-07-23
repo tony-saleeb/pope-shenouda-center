@@ -55,6 +55,19 @@ const NAV_ITEMS: NavItem[] = [
       </svg>
     ),
   },
+  {
+    href: '/scan',
+    label: 'الماسح 📷',
+    icon: (active) => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={active ? '#fbba33' : 'rgba(247,240,228,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 7V5a2 2 0 0 1 2-2h2" />
+        <path d="M17 3h2a2 2 0 0 1 2 2v2" />
+        <path d="M21 17v2a2 2 0 0 1-2 2h-2" />
+        <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
+        <rect x="7" y="7" width="10" height="10" rx="1" />
+      </svg>
+    ),
+  },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -176,32 +189,57 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </div>
           </div>
 
-          {/* Sign Out Button */}
-          <button
-            onClick={() => signOut()}
-            title="تسجيل الخروج"
-            style={{
-              background: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              color: '#f87171',
-              padding: '0.45rem 0.75rem',
-              borderRadius: '0.5rem',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.375rem',
-              transition: 'all 0.2s ease',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <polyline points="16 17 21 12 16 7" />
-              <line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
-            <span className="hidden-mobile">خروج</span>
-          </button>
+          {/* Right Action Bar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+            <Link
+              href="/scan"
+              style={{ textDecoration: 'none' }}
+              title="رابط كود دخول خادمي القاعة لماسح التذاكر"
+            >
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.375rem',
+                background: 'rgba(242, 158, 19, 0.12)',
+                border: '1px solid rgba(242, 158, 19, 0.3)',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.8125rem',
+                color: '#fbba33',
+                fontWeight: 700,
+              }}>
+                <span>🔑 كود الماسح:</span>
+                <span style={{ fontFamily: 'monospace', letterSpacing: '1px', color: '#fff' }}>102030</span>
+              </div>
+            </Link>
+
+            {/* Sign Out Button */}
+            <button
+              onClick={() => signOut()}
+              title="تسجيل الخروج"
+              style={{
+                background: 'rgba(239, 68, 68, 0.12)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                color: '#f87171',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.375rem',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span className="hidden-mobile">خروج</span>
+            </button>
+          </div>
         </div>
       </nav>
 

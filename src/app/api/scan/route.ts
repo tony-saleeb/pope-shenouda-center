@@ -1,14 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { verifyTicket } from '@/lib/qr/hmac';
-import { requireUsher } from '@/lib/auth/guards';
+import { verifyAuthToken } from '@/lib/auth/guards';
+import { getValidPasscode } from '@/app/api/scan/verify-passcode/route';
 import { FieldValue } from 'firebase-admin/firestore';
 
 export async function POST(request: NextRequest) {
-  // Verify usher/admin auth
-  const authResult = await requireUsher(request);
-  if (!authResult.authorized) {
-    return authResult.response;
+  // Check authorization via Usher Passcode header OR Firebase ID Token
+  const passcodeHeader = request.headers.get('x-usher-passcode');
+  let authorized = false;
+  let usherId = 'usher-passcode';
+
+  if (passcodeHeader) {
+    const validPasscode = await getValidPasscode();
+    if (passcodeHeader.trim() === validPasscode.trim()) {
+      authorized = true;
+      usherId = 'usher-passcode';
+    }
+  }
+
+  if (!authorized) {
+    const decodedToken = await verifyAuthToken(request);
+    if (decodedToken) {
+      const userEmail = decodedToken.email?.toLowerCase();
+      const isPrimaryAdmin = userEmail === 'tonysaleeb23@gmail.com';
+      const userRole = decodedToken.role || (isPrimaryAdmin ? 'admin' : undefined);
+      if (userRole === 'admin' || userRole === 'usher') {
+        authorized = true;
+        usherId = decodedToken.uid;
+      }
+    }
+  }
+
+  if (!authorized) {
+    return NextResponse.json(
+      {
+        type: 'invalid_ticket',
+        message: 'Unauthorized',
+        messageAr: 'غير مصرح — كود الماسح غير صحيح',
+      },
+      { status: 401 }
+    );
   }
 
   try {
@@ -62,7 +94,7 @@ export async function POST(request: NextRequest) {
       transaction.update(ticketRef, {
         used: true,
         usedAt: FieldValue.serverTimestamp(),
-        usedByUsherId: authResult.uid,
+        usedByUsherId: usherId,
       });
 
       // Get registrant info for the success response
@@ -103,7 +135,7 @@ export async function POST(request: NextRequest) {
           {
             type: 'invalid_ticket',
             message: 'Ticket not found',
-            messageAr: 'التذكرة غير موجودة',
+            messageAr: 'التذكرة غير موجودة في النظام',
           },
           { status: 404 }
         );
@@ -114,7 +146,7 @@ export async function POST(request: NextRequest) {
       {
         type: 'error',
         message: 'Internal server error',
-        messageAr: 'حدث خطأ — حاول مرة أخرى',
+        messageAr: 'حدث خطأ في النظام — حاول مرة أخرى',
       },
       { status: 500 }
     );

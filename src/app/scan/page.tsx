@@ -1,54 +1,116 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useAuth } from '@/lib/auth/context';
-import { useRouter } from 'next/navigation';
 import type { ScanResult } from '@/lib/types';
+import Header from '@/components/Header';
 
 export default function ScanPage() {
-  const { user, role, loading: authLoading } = useAuth();
-  const router = useRouter();
+  const [passcode, setPasscode] = useState<string>('');
+  const [authenticated, setAuthenticated] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState<boolean>(false);
+
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [scanning, setScanning] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [manualCode, setManualCode] = useState('');
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
+
   const scannerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const html5QrScannerRef = useRef<any>(null);
 
-  // Auth guard
+  // Check stored passcode on mount
   useEffect(() => {
-    if (!authLoading && (!user || (role !== 'usher' && role !== 'admin'))) {
-      router.push('/admin/login');
+    const stored = localStorage.getItem('usher_passcode');
+    if (stored) {
+      verifyPasscode(stored);
     }
-  }, [user, role, authLoading, router]);
+  }, []);
+
+  const verifyPasscode = async (codeToTest: string) => {
+    setVerifying(true);
+    setAuthError(null);
+    try {
+      const response = await fetch('/api/scan/verify-passcode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passcode: codeToTest }),
+      });
+
+      const data = await response.json();
+      if (data.valid) {
+        localStorage.setItem('usher_passcode', codeToTest);
+        setPasscode(codeToTest);
+        setAuthenticated(true);
+      } else {
+        localStorage.removeItem('usher_passcode');
+        setAuthError(data.error || 'كود الماسح غير صحيح');
+        setAuthenticated(false);
+      }
+    } catch {
+      setAuthError('حدث خطأ في الاتصال بالسيرفر');
+      setAuthenticated(false);
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handlePasscodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passcode.trim()) return;
+    verifyPasscode(passcode.trim());
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('usher_passcode');
+    setAuthenticated(false);
+    setPasscode('');
+    if (html5QrScannerRef.current) {
+      try {
+        html5QrScannerRef.current.stop();
+      } catch {
+        // Ignore
+      }
+    }
+  };
 
   const handleScan = useCallback(async (qrToken: string) => {
-    if (processing || !user) return;
+    if (processing) return;
     setProcessing(true);
     setScanResult(null);
 
+    const currentPasscode = passcode || localStorage.getItem('usher_passcode') || '';
+
     try {
-      const token = await user.getIdToken();
       const response = await fetch('/api/scan', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          'x-usher-passcode': currentPasscode,
         },
         body: JSON.stringify({ qrToken }),
       });
 
       const data: ScanResult = await response.json();
       setScanResult(data);
-      setScanHistory((prev) => [data, ...prev].slice(0, 20));
+      setScanHistory((prev) => [data, ...prev].slice(0, 15));
 
-      // Auto-clear result overlay after 5 seconds
+      // Haptic feedback if available
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        if (data.type === 'success') {
+          navigator.vibrate([100, 50, 100]);
+        } else {
+          navigator.vibrate([300]);
+        }
+      }
+
+      // Auto-clear result overlay after 4 seconds
       setTimeout(() => {
         setScanResult(null);
         setProcessing(false);
-      }, 5000);
+      }, 4000);
     } catch {
       const errorResult: ScanResult = {
         type: 'invalid_ticket',
@@ -58,11 +120,11 @@ export default function ScanPage() {
       setScanResult(errorResult);
       setProcessing(false);
     }
-  }, [processing, user]);
+  }, [processing, passcode]);
 
-  // Initialize QR scanner
+  // Initialize QR scanner when authenticated
   useEffect(() => {
-    if (!user || (role !== 'usher' && role !== 'admin')) return;
+    if (!authenticated) return;
 
     let mounted = true;
 
@@ -86,14 +148,14 @@ export default function ScanPage() {
             handleScan(decodedText);
           },
           () => {
-            // Ignore scan errors when no QR code is in frame
+            // Ignore frame scan errors
           }
         );
 
         setScanning(true);
       } catch (err) {
         console.error('Scanner init error:', err);
-        setError('لا يمكن الوصول للكاميرا — يرجى إعطاء صلاحية الكاميرا في المتصفح');
+        setError('لا يمكن الوصول للكاميرا — يرجى السماح بالوصول للكاميرا في إعدادات المتصفح');
       }
     };
 
@@ -102,222 +164,272 @@ export default function ScanPage() {
     return () => {
       mounted = false;
       if (html5QrScannerRef.current) {
-        html5QrScannerRef.current.stop().catch(console.error);
+        try {
+          html5QrScannerRef.current.stop();
+        } catch {
+          // Ignore cleanup error
+        }
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, role]);
+  }, [authenticated, handleScan]);
 
-  if (authLoading) {
+  // ─── Render Passcode Gate ──────────────────────────────────────────
+  if (!authenticated) {
     return (
-      <main style={{ position: 'relative', zIndex: 1, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="spinner spinner-lg spinner-gold" />
-      </main>
+      <>
+        <Header />
+        <main style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+          <div className="container-mobile" style={{ maxWidth: '24rem' }}>
+            <div className="glass-card" style={{ padding: '2.5rem 1.75rem', textAlign: 'center' }}>
+              <div style={{
+                width: '4.5rem',
+                height: '4.5rem',
+                borderRadius: '50%',
+                background: 'rgba(251, 186, 51, 0.12)',
+                border: '1.5px solid rgba(251, 186, 51, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 1.5rem',
+              }}>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </div>
+
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.5rem' }}>
+                بوابة خادم القاعة 🎫
+              </h1>
+              <p style={{ color: 'rgba(247, 240, 228, 0.6)', fontSize: '0.875rem', marginBottom: '2rem' }}>
+                أدخل كود الماسح المعتمد للدخول إلى كاميرا فحص التذاكر
+              </p>
+
+              <form onSubmit={handlePasscodeSubmit}>
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <input
+                    type="password"
+                    pattern="[0-9]*"
+                    inputMode="numeric"
+                    className="form-input"
+                    placeholder="أدخل كود الماسح (مثال: 102030)"
+                    value={passcode}
+                    onChange={(e) => setPasscode(e.target.value)}
+                    style={{
+                      textAlign: 'center',
+                      fontSize: '1.375rem',
+                      letterSpacing: '0.25rem',
+                      fontWeight: 700,
+                      background: 'rgba(19, 12, 5, 0.7)',
+                      borderColor: authError ? '#ef4444' : 'rgba(242, 158, 19, 0.3)',
+                    }}
+                    autoFocus
+                  />
+                  {authError && (
+                    <p style={{ color: '#ef4444', fontSize: '0.8125rem', marginTop: '0.5rem', fontWeight: 600 }}>
+                      ⚠️ {authError}
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-full"
+                  disabled={verifying || !passcode.trim()}
+                  style={{
+                    padding: '0.875rem',
+                    fontSize: '1rem',
+                    fontWeight: 800,
+                    opacity: verifying || !passcode.trim() ? 0.6 : 1,
+                  }}
+                >
+                  {verifying ? (
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span className="spinner" style={{ width: '1.25rem', height: '1.25rem' }} />
+                      جاري التحقق...
+                    </span>
+                  ) : (
+                    'دخول إلى الماسح 📷'
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        </main>
+      </>
     );
   }
 
-  const getResultOverlay = () => {
-    if (!scanResult) return null;
+  // ─── Render Scanner View ───────────────────────────────────────────
+  return (
+    <>
+      <Header />
+      <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', padding: '1.5rem 1rem 3rem' }}>
+        <div className="container-mobile" style={{ maxWidth: '28rem' }}>
+          {/* Header Bar */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '1.5rem',
+            background: 'rgba(19, 12, 5, 0.6)',
+            padding: '0.75rem 1.25rem',
+            borderRadius: '1rem',
+            border: '1px solid rgba(242, 158, 19, 0.2)',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <span style={{ fontSize: '1.25rem' }}>📷</span>
+              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="btn btn-ghost"
+              style={{
+                padding: '0.375rem 0.875rem',
+                fontSize: '0.75rem',
+                border: '1px solid rgba(242, 158, 19, 0.25)',
+                color: 'rgba(247, 240, 228, 0.7)',
+              }}
+            >
+              تسجيل الخروج
+            </button>
+          </div>
 
-    let bgClass = '';
-    let icon = null;
+          {/* Camera Container */}
+          <div className="glass-card" style={{ padding: '1rem', position: 'relative', overflow: 'hidden', marginBottom: '1.5rem' }}>
+            <div
+              ref={scannerRef}
+              id="qr-reader"
+              style={{
+                width: '100%',
+                borderRadius: '0.75rem',
+                overflow: 'hidden',
+                background: 'black',
+                minHeight: '260px',
+              }}
+            />
 
-    switch (scanResult.type) {
-      case 'success':
-        bgClass = 'scan-success';
-        icon = (
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        );
-        break;
-      case 'already_used':
-        bgClass = 'scan-warning';
-        icon = (
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-        );
-        break;
-      default:
-        bgClass = 'scan-error';
-        icon = (
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="15" y1="9" x2="9" y2="15" />
-            <line x1="9" y1="9" x2="15" y2="15" />
-          </svg>
-        );
-    }
+            {!scanning && !error && (
+              <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                <div className="spinner spinner-lg" style={{ margin: '0 auto 1rem', borderTopColor: '#fbba33' }} />
+                <p style={{ color: 'rgba(247, 240, 228, 0.6)', fontSize: '0.875rem' }}>جاري تشغيل الكاميرا...</p>
+              </div>
+            )}
 
-    return (
-      <div
-        className={`scan-overlay ${bgClass}`}
-        onClick={() => { setScanResult(null); setProcessing(false); }}
-        style={{ cursor: 'pointer', zIndex: 100 }}
-      >
-        <div style={{
-          width: '5rem', height: '5rem', borderRadius: '50%',
-          background: 'rgba(255,255,255,0.2)', display: 'flex',
-          alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem',
-        }}>
-          {icon}
-        </div>
+            {error && (
+              <div style={{
+                padding: '1.5rem',
+                textAlign: 'center',
+                background: 'rgba(239, 68, 68, 0.15)',
+                borderRadius: '0.75rem',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+              }}>
+                <p style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.875rem' }}>{error}</p>
+              </div>
+            )}
 
-        <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'white', marginBottom: '0.75rem' }}>
-          {scanResult.messageAr}
-        </h2>
+            {/* Scan Overlay Result */}
+            {scanResult && (
+              <div style={{
+                position: 'absolute',
+                inset: 0,
+                background: scanResult.type === 'success'
+                  ? 'rgba(16, 185, 129, 0.95)'
+                  : scanResult.type === 'already_used'
+                  ? 'rgba(245, 158, 11, 0.95)'
+                  : 'rgba(239, 68, 68, 0.95)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '2rem 1.5rem',
+                textAlign: 'center',
+                color: '#fff',
+                zIndex: 10,
+                backdropFilter: 'blur(8px)',
+              }}>
+                <div style={{ fontSize: '3.5rem', marginBottom: '0.5rem' }}>
+                  {scanResult.type === 'success' ? '✅' : scanResult.type === 'already_used' ? '⚠️' : '❌'}
+                </div>
 
-        {scanResult.registrantName && (
-          <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(0,0,0,0.2)', borderRadius: '1rem' }}>
-            <p style={{ fontSize: '1.375rem', fontWeight: 800, color: 'white' }}>
-              {scanResult.registrantName}
-            </p>
-            {scanResult.church && (
-              <p style={{ fontSize: '1rem', color: 'rgba(255,255,255,0.85)', marginTop: '0.25rem' }}>
-                {scanResult.church}
-              </p>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+                  {scanResult.messageAr}
+                </h2>
+
+                {scanResult.registrantName && (
+                  <div style={{ marginTop: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1.25rem', borderRadius: '0.75rem' }}>
+                    <p style={{ fontSize: '1.25rem', fontWeight: 800 }}>{scanResult.registrantName}</p>
+                    <p style={{ fontSize: '0.875rem', opacity: 0.9 }}>{scanResult.church}</p>
+                  </div>
+                )}
+              </div>
             )}
           </div>
-        )}
 
-        {scanResult.usedAt && (
-          <p style={{ color: 'rgba(255,255,255,0.8)', marginTop: '1rem', fontSize: '0.875rem' }}>
-            تم تسجيل الدخول سابقاً في: {new Date(scanResult.usedAt).toLocaleString('ar-EG')}
-          </p>
-        )}
-
-        <p style={{ color: 'rgba(255,255,255,0.6)', marginTop: '2rem', fontSize: '0.8125rem' }}>
-          اضغط في أي مكان لمسح التذكرة التالية
-        </p>
-      </div>
-    );
-  };
-
-  return (
-    <main style={{ position: 'relative', zIndex: 1, minHeight: '100dvh', paddingBottom: '3rem' }}>
-      {/* Result Overlay */}
-      {getResultOverlay()}
-
-      {/* Mobile Scanner Header */}
-      <div style={{
-        padding: '1rem 1.25rem',
-        background: 'rgba(19, 12, 5, 0.88)',
-        backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(242, 158, 19, 0.18)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        position: 'sticky',
-        top: 0,
-        zIndex: 40,
-      }}>
-        <h1 style={{ fontSize: '1.125rem', fontWeight: 800, color: '#f7f0e4', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span>📷</span>
-          <span>فحص التذاكر</span>
-        </h1>
-
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          fontSize: '0.8125rem',
-          color: scanning ? '#10b981' : '#ef4444',
-          background: scanning ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
-          padding: '0.375rem 0.75rem',
-          borderRadius: '0.625rem',
-          border: `1px solid ${scanning ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
-        }}>
-          <div className="pulse-dot" style={{ background: scanning ? '#10b981' : '#ef4444' }} />
-          <span>{scanning ? 'الكاميرا تعمل' : 'الكاميرا متوقفة'}</span>
-        </div>
-      </div>
-
-      {/* Responsive Mobile Camera View Container */}
-      <div style={{ padding: '1.25rem 1rem', maxWidth: '28rem', margin: '0 auto' }}>
-        <div style={{
-          position: 'relative',
-          borderRadius: '1.25rem',
-          overflow: 'hidden',
-          border: '1.5px solid rgba(242, 158, 19, 0.25)',
-          background: 'rgba(19, 12, 5, 0.7)',
-          boxShadow: '0 8px 30px rgba(0,0,0,0.5)',
-        }}>
-          {error ? (
-            <div style={{
-              padding: '3rem 1.5rem',
-              textAlign: 'center',
-              background: 'rgba(239, 68, 68, 0.08)',
-            }}>
-              <p style={{ fontSize: '3rem', marginBottom: '1rem' }}>📵</p>
-              <p style={{ fontSize: '1.0625rem', fontWeight: 700, color: '#f87171', marginBottom: '0.5rem' }}>
-                {error}
-              </p>
-              <p style={{ fontSize: '0.8125rem', color: 'rgba(247, 240, 228, 0.55)' }}>
-                تأكد من فتح الصفحة في المتصفح وإعطاء الصلاحية للكاميرا
-              </p>
-            </div>
-          ) : (
-            <div id="qr-reader" ref={scannerRef} style={{ width: '100%' }} />
-          )}
-
-          {processing && !scanResult && (
-            <div style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(0,0,0,0.65)',
-              backdropFilter: 'blur(4px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 10,
-            }}>
-              <div className="spinner spinner-lg spinner-gold" />
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Scan History */}
-      {scanHistory.length > 0 && (
-        <div style={{ padding: '0 1rem', maxWidth: '28rem', margin: '1rem auto 0' }}>
-          <h3 style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: '0.75rem', color: 'rgba(247, 240, 228, 0.65)' }}>
-            سجل آخر الفحوصات ({scanHistory.length.toLocaleString('ar-EG')})
-          </h3>
-
-          <div style={{ display: 'grid', gap: '0.5rem' }}>
-            {scanHistory.map((scan, index) => (
-              <div
-                key={index}
-                className="glass-card"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '0.75rem',
-                  fontSize: '0.875rem',
-                  border: '1px solid rgba(242, 158, 19, 0.12)',
-                }}
-              >
-                <span style={{ fontSize: '1.25rem' }}>
-                  {scan.type === 'success' ? '✅' : scan.type === 'already_used' ? '⚠️' : '🚫'}
-                </span>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontWeight: 700, color: '#f7f0e4' }}>{scan.registrantName || scan.messageAr}</span>
-                  {scan.church && (
-                    <span style={{ color: 'rgba(247, 240, 228, 0.5)', marginRight: '0.5rem' }}>
-                      — {scan.church}
-                    </span>
-                  )}
-                </div>
+          {/* Manual Input Fallback */}
+          <div className="glass-card" style={{ padding: '1.25rem' }}>
+            <p style={{ fontSize: '0.8125rem', color: 'rgba(247, 240, 228, 0.6)', marginBottom: '0.75rem', fontWeight: 600 }}>
+              إدخال الرمز يدوياً (في حالة تعذر الكاميرا):
+            </p>
+            <form onSubmit={(e) => { e.preventDefault(); if (manualCode.trim()) handleScan(manualCode.trim()); }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="أدخل كود التذكرة..."
+                  value={manualCode}
+                  onChange={(e) => setManualCode(e.target.value)}
+                  style={{ flex: 1, padding: '0.625rem 0.875rem', fontSize: '0.875rem', background: 'rgba(19, 12, 5, 0.7)' }}
+                />
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={processing || !manualCode.trim()}
+                  style={{ padding: '0.625rem 1rem', fontSize: '0.875rem' }}
+                >
+                  فحص
+                </button>
               </div>
-            ))}
+            </form>
           </div>
+
+          {/* Recent History Log */}
+          {scanHistory.length > 0 && (
+            <div style={{ marginTop: '1.5rem' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'rgba(247, 240, 228, 0.5)', marginBottom: '0.75rem', fontWeight: 700 }}>
+                آخر عمليات الفحص:
+              </p>
+              <div style={{ display: 'grid', gap: '0.5rem' }}>
+                {scanHistory.map((item, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '0.625rem 1rem',
+                      borderRadius: '0.625rem',
+                      background: 'rgba(19, 12, 5, 0.5)',
+                      border: '1px solid rgba(242, 158, 19, 0.1)',
+                      fontSize: '0.8125rem',
+                    }}
+                  >
+                    <span style={{ fontWeight: 700, color: '#f7f0e4' }}>
+                      {item.registrantName || item.messageAr}
+                    </span>
+                    <span style={{
+                      color: item.type === 'success' ? '#10b981' : item.type === 'already_used' ? '#fbba33' : '#ef4444',
+                      fontWeight: 700,
+                    }}>
+                      {item.type === 'success' ? 'مقبول ✓' : item.type === 'already_used' ? 'مستعمل ⚠️' : 'خطأ ❌'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-      )}
-    </main>
+      </main>
+    </>
   );
 }
