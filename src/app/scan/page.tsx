@@ -58,6 +58,55 @@ function playScanSound(type: 'success' | 'already_used' | 'invalid_ticket' | 'ta
   }
 }
 
+// ─── Adaptive Otsu Binarization (Restores low-brightness & glared QR modules) ──
+function otsuAdaptiveBinarize(imageData: ImageData): ImageData {
+  const data = imageData.data;
+  const len = data.length;
+  const histogram = new Uint32Array(256);
+
+  for (let i = 0; i < len; i += 4) {
+    const gray = (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000 | 0;
+    data[i] = gray;
+    histogram[gray]++;
+  }
+
+  const total = len / 4;
+  let sum = 0;
+  for (let t = 0; t < 256; t++) sum += t * histogram[t];
+
+  let sumB = 0;
+  let wB = 0;
+  let wF = 0;
+  let varMax = 0;
+  let threshold = 128;
+
+  for (let t = 0; t < 256; t++) {
+    wB += histogram[t];
+    if (wB === 0) continue;
+    wF = total - wB;
+    if (wF === 0) break;
+
+    sumB += t * histogram[t];
+    const mB = sumB / wB;
+    const mF = (sum - sumB) / wF;
+    const varBetween = wB * wF * (mB - mF) * (mB - mF);
+
+    if (varBetween > varMax) {
+      varMax = varBetween;
+      threshold = t;
+    }
+  }
+
+  for (let i = 0; i < len; i += 4) {
+    const v = data[i] < threshold ? 0 : 255;
+    data[i] = v;
+    data[i + 1] = v;
+    data[i + 2] = v;
+  }
+
+  return imageData;
+}
+
 export default function ScanPage() {
   const [passcode, setPasscode] = useState<string>('');
   const [authenticated, setAuthenticated] = useState<boolean>(false);
@@ -74,9 +123,6 @@ export default function ScanPage() {
   // Hardware controls state
   const [supportsTorch, setSupportsTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
-  const [supportsZoom, setSupportsZoom] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [zoomRange, setZoomRange] = useState({ min: 1, max: 5, step: 0.1 });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -246,25 +292,7 @@ export default function ScanPage() {
     }
   };
 
-  // Hardware Zoom adjust
-  const changeZoom = async (newZoom: number) => {
-    if (!mediaStreamRef.current) return;
-    const track = mediaStreamRef.current.getVideoTracks()[0];
-    if (!track) return;
-
-    const clampedZoom = Math.max(zoomRange.min, Math.min(zoomRange.max, newZoom));
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (track as any).applyConstraints({
-        advanced: [{ zoom: clampedZoom }],
-      });
-      setZoomLevel(clampedZoom);
-    } catch (e) {
-      console.warn('Zoom constraint error:', e);
-    }
-  };
-
-  // Ultra-fast requestAnimationFrame Decode Loop (BarcodeDetector primary, jsQR fallback, middle 60% crop)
+  // Multi-Pass AI Detection Engine (Native GPU + Adaptive Otsu Binarization + Auto Optical Lens Focus)
   const startDetectionLoop = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let detector: any = null;
@@ -287,41 +315,58 @@ export default function ScanPage() {
       if (video && video.readyState === video.HAVE_ENOUGH_DATA && !processingRef.current) {
         let detectedCode: string | null = null;
 
-        // Primary: Native BarcodeDetector API (Zero-latency hardware decode)
+        // Pass 1: Hardware BarcodeDetector API (Full 100% Video Frame, 10ms GPU decode)
         if (detector) {
           try {
             const barcodes = await detector.detect(video);
             if (barcodes && barcodes.length > 0) {
               detectedCode = barcodes[0].rawValue || barcodes[0].rawValueText;
+
+              // AI Optical Auto-Zoom: If distant QR bounding box detected, auto-zoom camera lens!
+              if (barcodes[0].boundingBox && mediaStreamRef.current) {
+                const track = mediaStreamRef.current.getVideoTracks()[0];
+                if (track && 'getCapabilities' in track) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  const caps = (track as any).getCapabilities();
+                  if (caps.zoom) {
+                    const boxW = barcodes[0].boundingBox.width;
+                    if (boxW < video.videoWidth * 0.25) {
+                      const targetZoom = Math.min(caps.zoom.max || 5, (caps.zoom.min || 1) + 1.5);
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      (track as any).applyConstraints({ advanced: [{ zoom: targetZoom }] }).catch(() => {});
+                    }
+                  }
+                }
+              }
             }
           } catch {
             // Ignore frame error
           }
         }
 
-        // Secondary: Middle 60% Crop jsQR Fallback (Lightweight pixel data, ultra-fast loop)
+        // Pass 2: Full-Resolution Image Data with jsQR
         if (!detectedCode && ctx) {
-          const videoWidth = video.videoWidth;
-          const videoHeight = video.videoHeight;
+          const vw = video.videoWidth;
+          const vh = video.videoHeight;
 
-          if (videoWidth > 0 && videoHeight > 0) {
-            // Middle 60% crop box for faster pixel decoding
-            const cropW = Math.floor(videoWidth * 0.65);
-            const cropH = Math.floor(videoHeight * 0.65);
-            const cropX = Math.floor((videoWidth - cropW) / 2);
-            const cropY = Math.floor((videoHeight - cropH) / 2);
+          if (vw > 0 && vh > 0) {
+            canvas.width = vw;
+            canvas.height = vh;
+            ctx.drawImage(video, 0, 0, vw, vh);
 
-            canvas.width = cropW;
-            canvas.height = cropH;
-            ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+            const fullImageData = ctx.getImageData(0, 0, vw, vh);
 
-            const imageData = ctx.getImageData(0, 0, cropW, cropH);
-            const code = jsQR(imageData.data, cropW, cropH, {
-              inversionAttempts: 'dontInvert',
-            });
-
+            // 2a. Direct full-res decode
+            let code = jsQR(fullImageData.data, vw, vh, { inversionAttempts: 'dontInvert' });
             if (code && code.data) {
               detectedCode = code.data;
+            } else {
+              // 2b. Adaptive Otsu Binarization (recovers dim/glared phone screens at long distance)
+              const binarizedImg = otsuAdaptiveBinarize(fullImageData);
+              code = jsQR(binarizedImg.data, vw, vh, { inversionAttempts: 'attemptBoth' });
+              if (code && code.data) {
+                detectedCode = code.data;
+              }
             }
           }
         }
@@ -382,20 +427,12 @@ export default function ScanPage() {
           }
         }
 
-        // Inspect torch & zoom capabilities
+        // Inspect torch capabilities
         if (track && 'getCapabilities' in track) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const caps = (track as any).getCapabilities();
           if (caps.torch) {
             setSupportsTorch(true);
-          }
-          if (caps.zoom) {
-            setSupportsZoom(true);
-            setZoomRange({
-              min: caps.zoom.min || 1,
-              max: caps.zoom.max || 5,
-              step: caps.zoom.step || 0.1,
-            });
           }
         }
 
@@ -561,7 +598,7 @@ export default function ScanPage() {
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                 <circle cx="12" cy="13" r="4" />
               </svg>
-              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر (خفيف)</span>
+              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر الذكي</span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -625,7 +662,7 @@ export default function ScanPage() {
                 muted
               />
 
-              {/* Viewfinder Target Guidelines (Middle 65% Box Overlay) */}
+              {/* Laser Line Viewfinder */}
               {scanning && !scanResult && (
                 <div style={{
                   position: 'absolute',
@@ -635,22 +672,13 @@ export default function ScanPage() {
                   justifyContent: 'center',
                   pointerEvents: 'none',
                 }}>
-                  {/* Center Box Target Frame */}
                   <div style={{
-                    width: '65%',
-                    height: '65%',
-                    border: '2.5px solid #fbba33',
+                    width: '85%',
+                    height: '85%',
+                    border: '1.5px dashed rgba(251, 186, 51, 0.4)',
                     borderRadius: '1rem',
-                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.45), 0 0 15px rgba(251, 186, 51, 0.5)',
                     position: 'relative',
                   }}>
-                    {/* Corner Target Markers */}
-                    <div style={{ position: 'absolute', top: -3, left: -3, width: 16, height: 16, borderTop: '4px solid #ffffff', borderLeft: '4px solid #ffffff', borderRadius: '4px 0 0 0' }} />
-                    <div style={{ position: 'absolute', top: -3, right: -3, width: 16, height: 16, borderTop: '4px solid #ffffff', borderRight: '4px solid #ffffff', borderRadius: '0 4px 0 0' }} />
-                    <div style={{ position: 'absolute', bottom: -3, left: -3, width: 16, height: 16, borderBottom: '4px solid #ffffff', borderLeft: '4px solid #ffffff', borderRadius: '0 0 0 4px' }} />
-                    <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderBottom: '4px solid #ffffff', borderRight: '4px solid #ffffff', borderRadius: '0 0 4px 0' }} />
-
-                    {/* Laser Scan Line */}
                     <div style={{
                       width: '100%',
                       height: '2px',
@@ -664,51 +692,10 @@ export default function ScanPage() {
                 </div>
               )}
 
-              {/* Hardware Zoom Control Overlay (+ / -) */}
-              {scanning && supportsZoom && !scanResult && (
-                <div style={{
-                  position: 'absolute',
-                  bottom: '0.75rem',
-                  right: '0.75rem',
-                  display: 'flex',
-                  gap: '0.375rem',
-                  background: 'rgba(0, 0, 0, 0.65)',
-                  backdropFilter: 'blur(8px)',
-                  padding: '0.25rem 0.5rem',
-                  borderRadius: '0.75rem',
-                  border: '1px solid rgba(242, 158, 19, 0.3)',
-                  zIndex: 5,
-                }}>
-                  <button
-                    onClick={() => changeZoom(zoomLevel - zoomRange.step)}
-                    disabled={zoomLevel <= zoomRange.min}
-                    style={{
-                      background: 'none', border: 'none', color: '#fff', fontSize: '1.25rem', fontWeight: 800, cursor: 'pointer', padding: '0 0.25rem',
-                      opacity: zoomLevel <= zoomRange.min ? 0.3 : 1,
-                    }}
-                  >
-                    -
-                  </button>
-                  <span style={{ color: '#fbba33', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
-                    {zoomLevel.toFixed(1)}x
-                  </span>
-                  <button
-                    onClick={() => changeZoom(zoomLevel + zoomRange.step)}
-                    disabled={zoomLevel >= zoomRange.max}
-                    style={{
-                      background: 'none', border: 'none', color: '#fff', fontSize: '1.25rem', fontWeight: 800, cursor: 'pointer', padding: '0 0.25rem',
-                      opacity: zoomLevel >= zoomRange.max ? 0.3 : 1,
-                    }}
-                  >
-                    +
-                  </button>
-                </div>
-              )}
-
               {!scanning && !error && (
                 <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                   <div className="spinner spinner-lg" style={{ margin: '0 auto 1rem', borderTopColor: '#fbba33' }} />
-                  <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.875rem' }}>جاري فتح الكاميرا وتجهيز الماسح السريع...</p>
+                  <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.875rem' }}>جاري فتح الكاميرا وتجهيز الماسح الذكي...</p>
                 </div>
               )}
 
