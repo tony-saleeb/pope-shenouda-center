@@ -12,6 +12,7 @@
     "firebase": "^12.16.0",
     "firebase-admin": "^14.2.0",
     "html5-qrcode": "^2.3.8",
+    "jsqr": "^1.4.0",
     "next": "16.2.10",
     "papaparse": "^5.5.4",
     "qrcode": "^1.5.4",

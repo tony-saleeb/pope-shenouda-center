@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ScanResult } from '@/lib/types';
 import Header from '@/components/Header';
+import jsQR from 'jsqr';
 
 export default function ScanPage() {
   const [passcode, setPasscode] = useState<string>('');
@@ -17,9 +18,10 @@ export default function ScanPage() {
   const [manualCode, setManualCode] = useState('');
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
 
-  const scannerRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const html5QrScannerRef = useRef<any>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // Synchronous lock refs to block race conditions from fast camera frames
   const processingRef = useRef<boolean>(false);
@@ -68,16 +70,10 @@ export default function ScanPage() {
   };
 
   const handleLogout = () => {
+    stopCamera();
     localStorage.removeItem('usher_passcode');
     setAuthenticated(false);
     setPasscode('');
-    if (html5QrScannerRef.current) {
-      try {
-        html5QrScannerRef.current.stop();
-      } catch {
-        // Ignore
-      }
-    }
   };
 
   const handleScan = useCallback(async (rawQrToken: string) => {
@@ -156,130 +152,191 @@ export default function ScanPage() {
     processingRef.current = false;
   };
 
-  // Robust multi-stage camera startup sequence with fallback modes
-  const startCameraSequence = useCallback(async (Html5Qrcode: any) => {
-    if (!scannerRef.current) return;
-    setError(null);
-
-    if (html5QrScannerRef.current) {
-      try {
-        await html5QrScannerRef.current.stop();
-      } catch {
-        // Ignore
-      }
+  const stopCamera = () => {
+    if (animationFrameIdRef.current) {
+      cancelAnimationFrame(animationFrameIdRef.current);
+      animationFrameIdRef.current = null;
     }
-
-    const scanner = new Html5Qrcode('qr-reader');
-    html5QrScannerRef.current = scanner;
-
-    const qrConfig = {
-      fps: 20,
-      qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-        return {
-          width: Math.floor(minEdge * 0.85),
-          height: Math.floor(minEdge * 0.85),
-        };
-      },
-    };
-
-    const onScanSuccess = (decodedText: string) => {
-      handleScanRef.current(decodedText);
-    };
-
-    // Attempt 1: Facing mode 'environment' (Rear camera)
-    try {
-      await scanner.start(
-        { facingMode: 'environment' },
-        qrConfig,
-        onScanSuccess,
-        () => {}
-      );
-      setScanning(true);
-      return;
-    } catch (err) {
-      console.warn('Attempt 1 (environment facingMode) failed:', err);
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
     }
-
-    // Attempt 2: Enumerate devices via getCameras() and pick back camera ID
-    try {
-      const devices = await Html5Qrcode.getCameras();
-      if (devices && devices.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const backCamera = devices.find((d: any) => /back|rear|environment|خلف/i.test(d.label)) || devices[devices.length - 1];
-        await scanner.start(
-          backCamera.id,
-          qrConfig,
-          onScanSuccess,
-          () => {}
-        );
-        setScanning(true);
-        return;
-      }
-    } catch (err) {
-      console.warn('Attempt 2 (getCameras) failed:', err);
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
-
-    // Attempt 3: Simple facingMode 'user' (Front camera)
-    try {
-      await scanner.start(
-        { facingMode: 'user' },
-        qrConfig,
-        onScanSuccess,
-        () => {}
-      );
-      setScanning(true);
-      return;
-    } catch (err) {
-      console.error('Attempt 3 failed:', err);
-      setError('لم نتمكن من تشغيل الكاميرا تلقائياً. يرجى الضغط على زر "تشغيل وتفعيل الكاميرا" بالأسفل والسماح للمتصفح بالوصول.');
-    }
-  }, []);
-
-  const retryCamera = async () => {
-    setError(null);
     setScanning(false);
-    try {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        await navigator.mediaDevices.getUserMedia({ video: true });
-      }
-    } catch (e) {
-      console.warn('getUserMedia prompt retry error:', e);
-    }
-    const { Html5Qrcode } = await import('html5-qrcode');
-    startCameraSequence(Html5Qrcode);
   };
 
-  // Initialize QR scanner when authenticated
-  useEffect(() => {
-    if (!authenticated) return;
-
-    let mounted = true;
-
-    const initScanner = async () => {
+  // Ultra-fast Hardware / JS Multi-scale QR detection loop
+  const startDetectionLoop = useCallback(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let barcodeDetector: any = null;
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
       try {
-        const { Html5Qrcode } = await import('html5-qrcode');
-        if (!mounted || !scannerRef.current) return;
-        await startCameraSequence(Html5Qrcode);
-      } catch (err) {
-        console.error('Scanner init error:', err);
-        setError('لا يمكن الوصول للكاميرا — يرجى السماح بالوصول للكاميرا في إعدادات المتصفح');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+      } catch {
+        barcodeDetector = null;
       }
-    };
+    }
 
-    initScanner();
+    const canvas = canvasRef.current || document.createElement('canvas');
+    canvasRef.current = canvas;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    return () => {
-      mounted = false;
-      if (html5QrScannerRef.current) {
-        try {
-          html5QrScannerRef.current.stop();
-        } catch {
-          // Ignore cleanup error
+    let lastScanTime = 0;
+
+    const tick = async () => {
+      const video = videoRef.current;
+      if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        animationFrameIdRef.current = requestAnimationFrame(tick);
+        return;
+      }
+
+      const now = Date.now();
+      // Run detection every 40ms (~25 FPS)
+      if (now - lastScanTime >= 40 && !processingRef.current) {
+        lastScanTime = now;
+
+        let detectedCode: string | null = null;
+
+        // Method 1: Hardware BarcodeDetector API (Zero-latency, 100% screen, distant & tiny QR detection)
+        if (barcodeDetector) {
+          try {
+            const barcodes = await barcodeDetector.detect(video);
+            if (barcodes && barcodes.length > 0) {
+              detectedCode = barcodes[0].rawValue || barcodes[0].rawValueText;
+            }
+          } catch {
+            // Ignore detector frame error
+          }
+        }
+
+        // Method 2: High-Resolution jsQR Canvas Fallback (100% video frame)
+        if (!detectedCode && ctx) {
+          const videoWidth = video.videoWidth;
+          const videoHeight = video.videoHeight;
+
+          if (videoWidth > 0 && videoHeight > 0) {
+            canvas.width = videoWidth;
+            canvas.height = videoHeight;
+            ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+            // Full resolution scan (Detects distant / small QR codes)
+            const imageData = ctx.getImageData(0, 0, videoWidth, videoHeight);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            });
+
+            if (code && code.data) {
+              detectedCode = code.data;
+            } else if (videoWidth > 640) {
+              // 2-Scale Pyramid Scan: Half resolution (Detects large / close-up QR codes ultra fast)
+              canvas.width = Math.floor(videoWidth / 2);
+              canvas.height = Math.floor(videoHeight / 2);
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const halfData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const halfCode = jsQR(halfData.data, halfData.width, halfData.height, {
+                inversionAttempts: 'dontInvert',
+              });
+              if (halfCode && halfCode.data) {
+                detectedCode = halfCode.data;
+              }
+            }
+          }
+        }
+
+        if (detectedCode && !processingRef.current) {
+          handleScanRef.current(detectedCode);
         }
       }
+
+      animationFrameIdRef.current = requestAnimationFrame(tick);
     };
-  }, [authenticated, startCameraSequence]);
+
+    animationFrameIdRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  // Initialize Camera Stream with HD resolution and continuous auto-focus
+  const initCamera = useCallback(async () => {
+    stopCamera();
+    setError(null);
+
+    const videoConstraintsOptions: MediaTrackConstraints[] = [
+      // 1. High Definition Rear Camera (Ideal 1080p, 1920x1080 for long range scanning)
+      {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1920, min: 1280 },
+        height: { ideal: 1080, min: 720 },
+      },
+      // 2. Standard 720p Rear Camera
+      {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280, min: 640 },
+        height: { ideal: 720, min: 480 },
+      },
+      // 3. Fallback any camera stream
+      {
+        video: true,
+      } as unknown as MediaTrackConstraints,
+    ];
+
+    let stream: MediaStream | null = null;
+    let lastError: unknown = null;
+
+    for (const constraints of videoConstraintsOptions) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: constraints,
+          audio: false,
+        });
+
+        // Try applying continuous autofocus if supported by camera hardware
+        const track = stream.getVideoTracks()[0];
+        if (track && 'applyConstraints' in track) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await (track as any).applyConstraints({
+              advanced: [{ focusMode: 'continuous' }],
+            });
+          } catch {
+            // Focus constraint not supported on this device, ignore
+          }
+        }
+
+        if (stream) break;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    if (!stream) {
+      console.error('Camera stream error:', lastError);
+      setError('لم نتمكن من الوصول للكاميرا. يرجى التأكد من منح إذن الوصول للكاميرا بالمتصفح، ثم الضغط على زر "منح الإذن وتفعيل الكاميرا".');
+      return;
+    }
+
+    mediaStreamRef.current = stream;
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = stream;
+      videoRef.current.setAttribute('playsinline', 'true');
+      videoRef.current.play().catch(() => {});
+    }
+
+    setScanning(true);
+    startDetectionLoop();
+  }, [startDetectionLoop]);
+
+  // Start Camera when authenticated
+  useEffect(() => {
+    if (!authenticated) return;
+    initCamera();
+
+    return () => {
+      stopCamera();
+    };
+  }, [authenticated, initCamera]);
 
   // ─── Render Passcode Gate ──────────────────────────────────────────
   if (!authenticated) {
@@ -409,7 +466,7 @@ export default function ScanPage() {
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                 <circle cx="12" cy="13" r="4" />
               </svg>
-              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر</span>
+              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر (ذكي)</span>
             </div>
             <button
               onClick={handleLogout}
@@ -425,118 +482,155 @@ export default function ScanPage() {
             </button>
           </div>
 
-          {/* Camera Container */}
-          <div className="glass-card" style={{ padding: '1rem', position: 'relative', overflow: 'hidden', marginBottom: '1.5rem' }}>
-            <div
-              ref={scannerRef}
-              id="qr-reader"
-              style={{
-                width: '100%',
-                borderRadius: '0.75rem',
-                overflow: 'hidden',
-                background: 'black',
-                minHeight: '260px',
-              }}
-            />
+          {/* High-Definition Full Frame Camera Container */}
+          <div className="glass-card" style={{ padding: '0.75rem', position: 'relative', overflow: 'hidden', marginBottom: '1.5rem' }}>
+            <div style={{
+              position: 'relative',
+              width: '100%',
+              aspectRatio: '1',
+              borderRadius: '0.875rem',
+              overflow: 'hidden',
+              background: '#000000',
+            }}>
+              <video
+                ref={videoRef}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  display: scanning ? 'block' : 'none',
+                }}
+                playsInline
+                muted
+              />
 
-            {!scanning && !error && (
-              <div style={{ textAlign: 'center', padding: '2rem 1rem' }}>
-                <div className="spinner spinner-lg" style={{ margin: '0 auto 1rem', borderTopColor: '#fbba33' }} />
-                <p style={{ color: 'rgba(247, 240, 228, 0.6)', fontSize: '0.875rem' }}>جاري تشغيل الكاميرا...</p>
-              </div>
-            )}
-
-            {error && (
-              <div style={{
-                padding: '1.5rem',
-                textAlign: 'center',
-                background: 'rgba(239, 68, 68, 0.15)',
-                borderRadius: '0.75rem',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-              }}>
-                <p style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.875rem', marginBottom: '1rem' }}>{error}</p>
-                <button
-                  onClick={retryCamera}
-                  className="btn btn-primary"
-                  style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
-                >
-                  📷 تشغيل وتفعيل الكاميرا
-                </button>
-              </div>
-            )}
-
-            {/* Scan Result Overlay */}
-            {scanResult && (
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                background: scanResult.type === 'success'
-                  ? 'rgba(16, 185, 129, 0.96)'
-                  : scanResult.type === 'already_used'
-                  ? 'rgba(217, 119, 6, 0.96)'
-                  : 'rgba(220, 38, 38, 0.96)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '1.5rem 1.25rem',
-                textAlign: 'center',
-                color: '#fff',
-                zIndex: 10,
-                backdropFilter: 'blur(10px)',
-              }}>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  {scanResult.type === 'success' ? (
-                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                      <polyline points="22 4 12 14.01 9 11.01" />
-                    </svg>
-                  ) : scanResult.type === 'already_used' ? (
-                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                      <line x1="12" y1="9" x2="12" y2="13" />
-                      <line x1="12" y1="17" x2="12.01" y2="17" />
-                    </svg>
-                  ) : (
-                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="15" y1="9" x2="9" y2="15" />
-                      <line x1="9" y1="9" x2="15" y2="15" />
-                    </svg>
-                  )}
+              {/* Viewfinder Target Guidelines */}
+              {scanning && !scanResult && (
+                <div style={{
+                  position: 'absolute',
+                  inset: '10%',
+                  border: '2px dashed rgba(251, 186, 51, 0.6)',
+                  borderRadius: '1rem',
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.35)',
+                }}>
+                  <div style={{
+                    width: '90%',
+                    height: '2px',
+                    background: 'linear-gradient(90deg, transparent, #fbba33, transparent)',
+                    boxShadow: '0 0 12px #fbba33',
+                    animation: 'pulse 1.5s ease-in-out infinite',
+                  }} />
                 </div>
+              )}
 
-                <h2 style={{ fontSize: '1.375rem', fontWeight: 900, marginBottom: '0.375rem' }}>
-                  {scanResult.messageAr}
-                </h2>
+              {!scanning && !error && (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
+                  <div className="spinner spinner-lg" style={{ margin: '0 auto 1rem', borderTopColor: '#fbba33' }} />
+                  <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.875rem' }}>جاري فتح الكاميرا وتجهيز الماسح الذكي...</p>
+                </div>
+              )}
 
-                {scanResult.registrantName && (
-                  <div style={{ marginTop: '0.5rem', background: 'rgba(0,0,0,0.25)', padding: '0.625rem 1rem', borderRadius: '0.75rem', width: '100%', maxWidth: '18rem' }}>
-                    <p style={{ fontSize: '1.125rem', fontWeight: 800, color: '#ffffff' }}>{scanResult.registrantName}</p>
-                    {scanResult.church && (
-                      <p style={{ fontSize: '0.8125rem', opacity: 0.9, marginTop: '0.125rem' }}>{scanResult.church}</p>
+              {error && (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  padding: '1.5rem',
+                  textAlign: 'center',
+                  background: 'rgba(19, 12, 5, 0.95)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 20,
+                }}>
+                  <p style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.875rem', marginBottom: '1.25rem', lineHeight: 1.6 }}>{error}</p>
+                  <button
+                    onClick={initCamera}
+                    className="btn btn-primary"
+                    style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
+                  >
+                    📷 منح الإذن وتفعيل الكاميرا
+                  </button>
+                </div>
+              )}
+
+              {/* Scan Result Overlay */}
+              {scanResult && (
+                <div style={{
+                  position: 'absolute',
+                  inset: 0,
+                  background: scanResult.type === 'success'
+                    ? 'rgba(16, 185, 129, 0.96)'
+                    : scanResult.type === 'already_used'
+                    ? 'rgba(217, 119, 6, 0.96)'
+                    : 'rgba(220, 38, 38, 0.96)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '1.5rem 1.25rem',
+                  textAlign: 'center',
+                  color: '#fff',
+                  zIndex: 30,
+                  backdropFilter: 'blur(10px)',
+                }}>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    {scanResult.type === 'success' ? (
+                      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
+                    ) : scanResult.type === 'already_used' ? (
+                      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
+                      </svg>
+                    ) : (
+                      <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="15" y1="9" x2="9" y2="15" />
+                        <line x1="9" y1="9" x2="15" y2="15" />
+                      </svg>
                     )}
                   </div>
-                )}
 
-                <button
-                  onClick={resetOverlay}
-                  style={{
-                    marginTop: '1.25rem',
-                    background: 'rgba(255, 255, 255, 0.25)',
-                    border: '1px solid rgba(255, 255, 255, 0.4)',
-                    color: '#fff',
-                    padding: '0.5rem 1.25rem',
-                    borderRadius: '0.625rem',
-                    fontSize: '0.875rem',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                  }}
-                >
-                  فحص تذكرة أخرى ➔
-                </button>
-              </div>
-            )}
+                  <h2 style={{ fontSize: '1.375rem', fontWeight: 900, marginBottom: '0.375rem' }}>
+                    {scanResult.messageAr}
+                  </h2>
+
+                  {scanResult.registrantName && (
+                    <div style={{ marginTop: '0.5rem', background: 'rgba(0,0,0,0.25)', padding: '0.625rem 1rem', borderRadius: '0.75rem', width: '100%', maxWidth: '18rem' }}>
+                      <p style={{ fontSize: '1.125rem', fontWeight: 800, color: '#ffffff' }}>{scanResult.registrantName}</p>
+                      {scanResult.church && (
+                        <p style={{ fontSize: '0.8125rem', opacity: 0.9, marginTop: '0.125rem' }}>{scanResult.church}</p>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={resetOverlay}
+                    style={{
+                      marginTop: '1.25rem',
+                      background: 'rgba(255, 255, 255, 0.25)',
+                      border: '1px solid rgba(255, 255, 255, 0.4)',
+                      color: '#fff',
+                      padding: '0.5rem 1.25rem',
+                      borderRadius: '0.625rem',
+                      fontSize: '0.875rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    فحص تذكرة أخرى ➔
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Manual Input Fallback */}
