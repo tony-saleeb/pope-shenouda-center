@@ -156,6 +156,100 @@ export default function ScanPage() {
     processingRef.current = false;
   };
 
+  // Robust multi-stage camera startup sequence with fallback modes
+  const startCameraSequence = useCallback(async (Html5Qrcode: any) => {
+    if (!scannerRef.current) return;
+    setError(null);
+
+    if (html5QrScannerRef.current) {
+      try {
+        await html5QrScannerRef.current.stop();
+      } catch {
+        // Ignore
+      }
+    }
+
+    const scanner = new Html5Qrcode('qr-reader');
+    html5QrScannerRef.current = scanner;
+
+    const qrConfig = {
+      fps: 20,
+      qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
+        const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+        return {
+          width: Math.floor(minEdge * 0.85),
+          height: Math.floor(minEdge * 0.85),
+        };
+      },
+    };
+
+    const onScanSuccess = (decodedText: string) => {
+      handleScanRef.current(decodedText);
+    };
+
+    // Attempt 1: Facing mode 'environment' (Rear camera)
+    try {
+      await scanner.start(
+        { facingMode: 'environment' },
+        qrConfig,
+        onScanSuccess,
+        () => {}
+      );
+      setScanning(true);
+      return;
+    } catch (err) {
+      console.warn('Attempt 1 (environment facingMode) failed:', err);
+    }
+
+    // Attempt 2: Enumerate devices via getCameras() and pick back camera ID
+    try {
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const backCamera = devices.find((d: any) => /back|rear|environment|خلف/i.test(d.label)) || devices[devices.length - 1];
+        await scanner.start(
+          backCamera.id,
+          qrConfig,
+          onScanSuccess,
+          () => {}
+        );
+        setScanning(true);
+        return;
+      }
+    } catch (err) {
+      console.warn('Attempt 2 (getCameras) failed:', err);
+    }
+
+    // Attempt 3: Simple facingMode 'user' (Front camera)
+    try {
+      await scanner.start(
+        { facingMode: 'user' },
+        qrConfig,
+        onScanSuccess,
+        () => {}
+      );
+      setScanning(true);
+      return;
+    } catch (err) {
+      console.error('Attempt 3 failed:', err);
+      setError('لم نتمكن من تشغيل الكاميرا تلقائياً. يرجى الضغط على زر "تشغيل وتفعيل الكاميرا" بالأسفل والسماح للمتصفح بالوصول.');
+    }
+  }, []);
+
+  const retryCamera = async () => {
+    setError(null);
+    setScanning(false);
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+    } catch (e) {
+      console.warn('getUserMedia prompt retry error:', e);
+    }
+    const { Html5Qrcode } = await import('html5-qrcode');
+    startCameraSequence(Html5Qrcode);
+  };
+
   // Initialize QR scanner when authenticated
   useEffect(() => {
     if (!authenticated) return;
@@ -165,39 +259,8 @@ export default function ScanPage() {
     const initScanner = async () => {
       try {
         const { Html5Qrcode } = await import('html5-qrcode');
-
         if (!mounted || !scannerRef.current) return;
-
-        const scanner = new Html5Qrcode('qr-reader');
-        html5QrScannerRef.current = scanner;
-
-        await scanner.start(
-          {
-            facingMode: 'environment',
-            width: { min: 640, ideal: 1280 },
-            height: { min: 480, ideal: 720 },
-          },
-          {
-            fps: 25,
-            qrbox: (viewfinderWidth, viewfinderHeight) => {
-              const minEdgePercentage = 0.85;
-              const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
-              const qrboxSize = Math.floor(minEdge * minEdgePercentage);
-              return {
-                width: qrboxSize,
-                height: qrboxSize,
-              };
-            },
-          },
-          (decodedText) => {
-            handleScanRef.current(decodedText);
-          },
-          () => {
-            // Ignore frame scan errors
-          }
-        );
-
-        setScanning(true);
+        await startCameraSequence(Html5Qrcode);
       } catch (err) {
         console.error('Scanner init error:', err);
         setError('لا يمكن الوصول للكاميرا — يرجى السماح بالوصول للكاميرا في إعدادات المتصفح');
@@ -216,7 +279,7 @@ export default function ScanPage() {
         }
       }
     };
-  }, [authenticated]);
+  }, [authenticated, startCameraSequence]);
 
   // ─── Render Passcode Gate ──────────────────────────────────────────
   if (!authenticated) {
@@ -391,7 +454,14 @@ export default function ScanPage() {
                 borderRadius: '0.75rem',
                 border: '1px solid rgba(239, 68, 68, 0.3)',
               }}>
-                <p style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.875rem' }}>{error}</p>
+                <p style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.875rem', marginBottom: '1rem' }}>{error}</p>
+                <button
+                  onClick={retryCamera}
+                  className="btn btn-primary"
+                  style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
+                >
+                  📷 تشغيل وتفعيل الكاميرا
+                </button>
               </div>
             )}
 
