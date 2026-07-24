@@ -4,17 +4,17 @@ import { signTicket } from './hmac';
 /**
  * Generate a QR code for a given ticket/registrant ID.
  * Returns a base64 encoded PNG Data URL.
- * High error correction (H) is used to ensure reliable scanning.
+ * Error correction level M is used for optimal module chunkiness and fast range scanning.
  */
 export async function generateQrCodeDataUrl(ticketId: string): Promise<string> {
   const token = signTicket(ticketId);
   return await QRCode.toDataURL(token, {
-    width: 400,
+    width: 500,
     margin: 2,
     color: {
       dark: '#000000',
       light: '#ffffff',
     },
-    errorCorrectionLevel: 'H',
+    errorCorrectionLevel: 'M',
   });
 }

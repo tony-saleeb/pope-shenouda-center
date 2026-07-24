@@ -5,6 +5,59 @@ import type { ScanResult } from '@/lib/types';
 import Header from '@/components/Header';
 import jsQR from 'jsqr';
 
+// ─── Web Audio API Sound Generator ──────────────────────────────────
+function playScanSound(type: 'success' | 'already_used' | 'invalid_ticket' | 'tampered' | 'error') {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const now = ctx.currentTime;
+
+    if (type === 'success') {
+      // Pleasant double high chime (Green success)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.setValueAtTime(1320, now + 0.1);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.3);
+    } else if (type === 'already_used') {
+      // Two-tone warning chime (Yellow/Orange used)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(659, now);
+      osc.frequency.setValueAtTime(440, now + 0.15);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    } else {
+      // Low error buzz (Red invalid)
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(220, now);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.35);
+    }
+  } catch {
+    // Ignore browser audio restrictions
+  }
+}
+
 export default function ScanPage() {
   const [passcode, setPasscode] = useState<string>('');
   const [authenticated, setAuthenticated] = useState<boolean>(false);
@@ -17,6 +70,13 @@ export default function ScanPage() {
   const [error, setError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
+
+  // Hardware controls state
+  const [supportsTorch, setSupportsTorch] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
+  const [supportsZoom, setSupportsZoom] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [zoomRange, setZoomRange] = useState({ min: 1, max: 5, step: 0.1 });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -80,20 +140,20 @@ export default function ScanPage() {
     const qrToken = rawQrToken.trim();
     if (!qrToken) return;
 
-    // 1. Guard against parallel calls from video frames
+    // Guard 1: Prevent parallel frame decoding execution
     if (processingRef.current) return;
 
-    // 2. Guard against duplicate immediate scan of same QR within 4 seconds
+    // Guard 2: Prevent scanning same token within 3.5 seconds
     const now = Date.now();
     if (
       lastScannedTokenRef.current &&
       lastScannedTokenRef.current.token === qrToken &&
-      now - lastScannedTokenRef.current.time < 4000
+      now - lastScannedTokenRef.current.time < 3500
     ) {
       return;
     }
 
-    // Lock immediately synchronously
+    // Lock immediately
     processingRef.current = true;
     lastScannedTokenRef.current = { token: qrToken, time: now };
     setProcessing(true);
@@ -115,7 +175,8 @@ export default function ScanPage() {
       setScanResult(data);
       setScanHistory((prev) => [data, ...prev].slice(0, 15));
 
-      // Haptic feedback
+      // Audio + Haptic feedback
+      playScanSound(data.type);
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         if (data.type === 'success') {
           navigator.vibrate([100, 50, 100]);
@@ -130,17 +191,17 @@ export default function ScanPage() {
         messageAr: 'خطأ في الاتصال — تأكد من اتصالك بالإنترنت',
       };
       setScanResult(errorResult);
+      playScanSound('invalid_ticket');
     } finally {
-      // Auto unlock overlay after 3.5 seconds
+      // Auto resume scanning cleanly after 3 seconds
       setTimeout(() => {
         setScanResult(null);
         setProcessing(false);
         processingRef.current = false;
-      }, 3500);
+      }, 3000);
     }
   }, [passcode]);
 
-  // Keep a ref to handleScan so camera callback always calls latest version
   const handleScanRef = useRef(handleScan);
   useEffect(() => {
     handleScanRef.current = handleScan;
@@ -167,16 +228,52 @@ export default function ScanPage() {
     setScanning(false);
   };
 
-  // Ultra-fast Hardware / JS Multi-scale QR detection loop
+  // Hardware Torch toggle
+  const toggleTorch = async () => {
+    if (!mediaStreamRef.current) return;
+    const track = mediaStreamRef.current.getVideoTracks()[0];
+    if (!track) return;
+
+    try {
+      const nextTorch = !torchOn;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (track as any).applyConstraints({
+        advanced: [{ torch: nextTorch }],
+      });
+      setTorchOn(nextTorch);
+    } catch (e) {
+      console.warn('Torch constraint error:', e);
+    }
+  };
+
+  // Hardware Zoom adjust
+  const changeZoom = async (newZoom: number) => {
+    if (!mediaStreamRef.current) return;
+    const track = mediaStreamRef.current.getVideoTracks()[0];
+    if (!track) return;
+
+    const clampedZoom = Math.max(zoomRange.min, Math.min(zoomRange.max, newZoom));
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (track as any).applyConstraints({
+        advanced: [{ zoom: clampedZoom }],
+      });
+      setZoomLevel(clampedZoom);
+    } catch (e) {
+      console.warn('Zoom constraint error:', e);
+    }
+  };
+
+  // Ultra-fast requestAnimationFrame Decode Loop (BarcodeDetector primary, jsQR fallback, middle 60% crop)
   const startDetectionLoop = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let barcodeDetector: any = null;
+    let detector: any = null;
     if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+        detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
       } catch {
-        barcodeDetector = null;
+        detector = null;
       }
     }
 
@@ -184,64 +281,47 @@ export default function ScanPage() {
     canvasRef.current = canvas;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-    let lastScanTime = 0;
-
     const tick = async () => {
       const video = videoRef.current;
-      if (!video || video.readyState !== video.HAVE_ENOUGH_DATA) {
-        animationFrameIdRef.current = requestAnimationFrame(tick);
-        return;
-      }
 
-      const now = Date.now();
-      // Run detection every 40ms (~25 FPS)
-      if (now - lastScanTime >= 40 && !processingRef.current) {
-        lastScanTime = now;
-
+      if (video && video.readyState === video.HAVE_ENOUGH_DATA && !processingRef.current) {
         let detectedCode: string | null = null;
 
-        // Method 1: Hardware BarcodeDetector API (Zero-latency, 100% screen, distant & tiny QR detection)
-        if (barcodeDetector) {
+        // Primary: Native BarcodeDetector API (Zero-latency hardware decode)
+        if (detector) {
           try {
-            const barcodes = await barcodeDetector.detect(video);
+            const barcodes = await detector.detect(video);
             if (barcodes && barcodes.length > 0) {
               detectedCode = barcodes[0].rawValue || barcodes[0].rawValueText;
             }
           } catch {
-            // Ignore detector frame error
+            // Ignore frame error
           }
         }
 
-        // Method 2: High-Resolution jsQR Canvas Fallback (100% video frame)
+        // Secondary: Middle 60% Crop jsQR Fallback (Lightweight pixel data, ultra-fast loop)
         if (!detectedCode && ctx) {
           const videoWidth = video.videoWidth;
           const videoHeight = video.videoHeight;
 
           if (videoWidth > 0 && videoHeight > 0) {
-            canvas.width = videoWidth;
-            canvas.height = videoHeight;
-            ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+            // Middle 60% crop box for faster pixel decoding
+            const cropW = Math.floor(videoWidth * 0.65);
+            const cropH = Math.floor(videoHeight * 0.65);
+            const cropX = Math.floor((videoWidth - cropW) / 2);
+            const cropY = Math.floor((videoHeight - cropH) / 2);
 
-            // Full resolution scan (Detects distant / small QR codes)
-            const imageData = ctx.getImageData(0, 0, videoWidth, videoHeight);
-            const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            canvas.width = cropW;
+            canvas.height = cropH;
+            ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+            const imageData = ctx.getImageData(0, 0, cropW, cropH);
+            const code = jsQR(imageData.data, cropW, cropH, {
               inversionAttempts: 'dontInvert',
             });
 
             if (code && code.data) {
               detectedCode = code.data;
-            } else if (videoWidth > 640) {
-              // 2-Scale Pyramid Scan: Half resolution (Detects large / close-up QR codes ultra fast)
-              canvas.width = Math.floor(videoWidth / 2);
-              canvas.height = Math.floor(videoHeight / 2);
-              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-              const halfData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-              const halfCode = jsQR(halfData.data, halfData.width, halfData.height, {
-                inversionAttempts: 'dontInvert',
-              });
-              if (halfCode && halfCode.data) {
-                detectedCode = halfCode.data;
-              }
             }
           }
         }
@@ -257,25 +337,23 @@ export default function ScanPage() {
     animationFrameIdRef.current = requestAnimationFrame(tick);
   }, []);
 
-  // Initialize Camera Stream with HD resolution and continuous auto-focus
+  // Initialize Camera Stream with 1280x720 ideal constraints and hardware capabilities check
   const initCamera = useCallback(async () => {
     stopCamera();
     setError(null);
 
     const videoConstraintsOptions: MediaTrackConstraints[] = [
-      // 1. High Definition Rear Camera (Ideal 1080p, 1920x1080 for long range scanning)
+      // 1. Tuned 1280x720 constraint with rear camera and continuous autofocus
+      {
+        facingMode: 'environment',
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+      },
+      // 2. Fallback rear camera
       {
         facingMode: { ideal: 'environment' },
-        width: { ideal: 1920, min: 1280 },
-        height: { ideal: 1080, min: 720 },
       },
-      // 2. Standard 720p Rear Camera
-      {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280, min: 640 },
-        height: { ideal: 720, min: 480 },
-      },
-      // 3. Fallback any camera stream
+      // 3. Fallback any camera
       {
         video: true,
       } as unknown as MediaTrackConstraints,
@@ -291,7 +369,7 @@ export default function ScanPage() {
           audio: false,
         });
 
-        // Try applying continuous autofocus if supported by camera hardware
+        // Apply continuous autofocus if available
         const track = stream.getVideoTracks()[0];
         if (track && 'applyConstraints' in track) {
           try {
@@ -300,7 +378,24 @@ export default function ScanPage() {
               advanced: [{ focusMode: 'continuous' }],
             });
           } catch {
-            // Focus constraint not supported on this device, ignore
+            // Ignore focus error
+          }
+        }
+
+        // Inspect torch & zoom capabilities
+        if (track && 'getCapabilities' in track) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const caps = (track as any).getCapabilities();
+          if (caps.torch) {
+            setSupportsTorch(true);
+          }
+          if (caps.zoom) {
+            setSupportsZoom(true);
+            setZoomRange({
+              min: caps.zoom.min || 1,
+              max: caps.zoom.max || 5,
+              step: caps.zoom.step || 0.1,
+            });
           }
         }
 
@@ -312,7 +407,7 @@ export default function ScanPage() {
 
     if (!stream) {
       console.error('Camera stream error:', lastError);
-      setError('لم نتمكن من الوصول للكاميرا. يرجى التأكد من منح إذن الوصول للكاميرا بالمتصفح، ثم الضغط على زر "منح الإذن وتفعيل الكاميرا".');
+      setError('لم نتمكن من الوصول للكاميرا. يرجى التأكد من منح إذن الوصول للكاميرا في إعدادات المتصفح، ثم الضغط على زر "تفعيل الكاميرا".');
       return;
     }
 
@@ -455,7 +550,7 @@ export default function ScanPage() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            marginBottom: '1.5rem',
+            marginBottom: '1.25rem',
             background: 'rgba(19, 12, 5, 0.6)',
             padding: '0.75rem 1.25rem',
             borderRadius: '1rem',
@@ -466,23 +561,49 @@ export default function ScanPage() {
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                 <circle cx="12" cy="13" r="4" />
               </svg>
-              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر (ذكي)</span>
+              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر (خفيف)</span>
             </div>
-            <button
-              onClick={handleLogout}
-              className="btn btn-ghost"
-              style={{
-                padding: '0.375rem 0.875rem',
-                fontSize: '0.75rem',
-                border: '1px solid rgba(242, 158, 19, 0.25)',
-                color: 'rgba(247, 240, 228, 0.7)',
-              }}
-            >
-              تسجيل الخروج
-            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* Torch Button */}
+              {supportsTorch && (
+                <button
+                  onClick={toggleTorch}
+                  title="فلاش الكاميرا"
+                  style={{
+                    background: torchOn ? '#fbba33' : 'rgba(255, 255, 255, 0.1)',
+                    border: '1px solid rgba(242, 158, 19, 0.3)',
+                    color: torchOn ? '#1a0f05' : '#f7f0e4',
+                    padding: '0.375rem 0.625rem',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                  </svg>
+                </button>
+              )}
+
+              <button
+                onClick={handleLogout}
+                className="btn btn-ghost"
+                style={{
+                  padding: '0.375rem 0.875rem',
+                  fontSize: '0.75rem',
+                  border: '1px solid rgba(242, 158, 19, 0.25)',
+                  color: 'rgba(247, 240, 228, 0.7)',
+                }}
+              >
+                تسجيل الخروج
+              </button>
+            </div>
           </div>
 
-          {/* High-Definition Full Frame Camera Container */}
+          {/* High-Performance Camera Container */}
           <div className="glass-card" style={{ padding: '0.75rem', position: 'relative', overflow: 'hidden', marginBottom: '1.5rem' }}>
             <div style={{
               position: 'relative',
@@ -504,33 +625,90 @@ export default function ScanPage() {
                 muted
               />
 
-              {/* Viewfinder Target Guidelines */}
+              {/* Viewfinder Target Guidelines (Middle 65% Box Overlay) */}
               {scanning && !scanResult && (
                 <div style={{
                   position: 'absolute',
-                  inset: '10%',
-                  border: '2px dashed rgba(251, 186, 51, 0.6)',
-                  borderRadius: '1rem',
-                  pointerEvents: 'none',
+                  inset: 0,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.35)',
+                  pointerEvents: 'none',
                 }}>
+                  {/* Center Box Target Frame */}
                   <div style={{
-                    width: '90%',
-                    height: '2px',
-                    background: 'linear-gradient(90deg, transparent, #fbba33, transparent)',
-                    boxShadow: '0 0 12px #fbba33',
-                    animation: 'pulse 1.5s ease-in-out infinite',
-                  }} />
+                    width: '65%',
+                    height: '65%',
+                    border: '2.5px solid #fbba33',
+                    borderRadius: '1rem',
+                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.45), 0 0 15px rgba(251, 186, 51, 0.5)',
+                    position: 'relative',
+                  }}>
+                    {/* Corner Target Markers */}
+                    <div style={{ position: 'absolute', top: -3, left: -3, width: 16, height: 16, borderTop: '4px solid #ffffff', borderLeft: '4px solid #ffffff', borderRadius: '4px 0 0 0' }} />
+                    <div style={{ position: 'absolute', top: -3, right: -3, width: 16, height: 16, borderTop: '4px solid #ffffff', borderRight: '4px solid #ffffff', borderRadius: '0 4px 0 0' }} />
+                    <div style={{ position: 'absolute', bottom: -3, left: -3, width: 16, height: 16, borderBottom: '4px solid #ffffff', borderLeft: '4px solid #ffffff', borderRadius: '0 0 0 4px' }} />
+                    <div style={{ position: 'absolute', bottom: -3, right: -3, width: 16, height: 16, borderBottom: '4px solid #ffffff', borderRight: '4px solid #ffffff', borderRadius: '0 0 4px 0' }} />
+
+                    {/* Laser Scan Line */}
+                    <div style={{
+                      width: '100%',
+                      height: '2px',
+                      background: 'linear-gradient(90deg, transparent, #fbba33, transparent)',
+                      boxShadow: '0 0 12px #fbba33',
+                      position: 'absolute',
+                      top: '50%',
+                      animation: 'pulse 1.5s ease-in-out infinite',
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Hardware Zoom Control Overlay (+ / -) */}
+              {scanning && supportsZoom && !scanResult && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '0.75rem',
+                  right: '0.75rem',
+                  display: 'flex',
+                  gap: '0.375rem',
+                  background: 'rgba(0, 0, 0, 0.65)',
+                  backdropFilter: 'blur(8px)',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '0.75rem',
+                  border: '1px solid rgba(242, 158, 19, 0.3)',
+                  zIndex: 5,
+                }}>
+                  <button
+                    onClick={() => changeZoom(zoomLevel - zoomRange.step)}
+                    disabled={zoomLevel <= zoomRange.min}
+                    style={{
+                      background: 'none', border: 'none', color: '#fff', fontSize: '1.25rem', fontWeight: 800, cursor: 'pointer', padding: '0 0.25rem',
+                      opacity: zoomLevel <= zoomRange.min ? 0.3 : 1,
+                    }}
+                  >
+                    -
+                  </button>
+                  <span style={{ color: '#fbba33', fontSize: '0.75rem', fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+                    {zoomLevel.toFixed(1)}x
+                  </span>
+                  <button
+                    onClick={() => changeZoom(zoomLevel + zoomRange.step)}
+                    disabled={zoomLevel >= zoomRange.max}
+                    style={{
+                      background: 'none', border: 'none', color: '#fff', fontSize: '1.25rem', fontWeight: 800, cursor: 'pointer', padding: '0 0.25rem',
+                      opacity: zoomLevel >= zoomRange.max ? 0.3 : 1,
+                    }}
+                  >
+                    +
+                  </button>
                 </div>
               )}
 
               {!scanning && !error && (
                 <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                   <div className="spinner spinner-lg" style={{ margin: '0 auto 1rem', borderTopColor: '#fbba33' }} />
-                  <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.875rem' }}>جاري فتح الكاميرا وتجهيز الماسح الذكي...</p>
+                  <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.875rem' }}>جاري فتح الكاميرا وتجهيز الماسح السريع...</p>
                 </div>
               )}
 
@@ -553,12 +731,12 @@ export default function ScanPage() {
                     className="btn btn-primary"
                     style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
                   >
-                    📷 منح الإذن وتفعيل الكاميرا
+                    📷 تفعيل الكاميرا
                   </button>
                 </div>
               )}
 
-              {/* Scan Result Overlay */}
+              {/* Full Screen Result Overlay with Instant Audio & Color Feedback */}
               {scanResult && (
                 <div style={{
                   position: 'absolute',
@@ -577,6 +755,7 @@ export default function ScanPage() {
                   color: '#fff',
                   zIndex: 30,
                   backdropFilter: 'blur(10px)',
+                  animation: 'fadeIn 0.2s ease',
                 }}>
                   <div style={{ marginBottom: '0.5rem' }}>
                     {scanResult.type === 'success' ? (

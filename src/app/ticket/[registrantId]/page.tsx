@@ -271,7 +271,7 @@ export default function TicketPage() {
               <img
                 src={ticket.qrImageUrl}
                 alt="QR Code"
-                style={{ width: '12rem', height: '12rem' }}
+                style={{ width: '16rem', height: '16rem', maxWidth: '100%', objectFit: 'contain' }}
               />
             </div>
           ) : (
