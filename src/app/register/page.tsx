@@ -413,8 +413,7 @@ export default function RegisterPage() {
             <input
               id="fileInput"
               type="file"
-              accept="image/*"
-              capture="environment"
+              accept="image/png,image/jpeg,image/jpg,image/heic,image/webp"
               onChange={handleFileSelect}
               style={{ display: 'none' }}
             />
