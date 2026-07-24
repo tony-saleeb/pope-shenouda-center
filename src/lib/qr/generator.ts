@@ -10,7 +10,7 @@ export async function generateQrCodeDataUrl(ticketId: string): Promise<string> {
   const token = signTicket(ticketId);
   return await QRCode.toDataURL(token, {
     width: 600,
-    margin: 4,
+    margin: 1,
     color: {
       dark: '#000000',
       light: '#ffffff',

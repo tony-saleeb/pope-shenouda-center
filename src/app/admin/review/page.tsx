@@ -23,6 +23,7 @@ export default function ReviewPage() {
   const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [approvedItems, setApprovedItems] = useState<Set<string>>(new Set());
+  const [selectedImageModal, setSelectedImageModal] = useState<{ url: string; name?: string } | null>(null);
 
   const PAGE_SIZE = 20;
 
@@ -394,10 +395,8 @@ export default function ReviewPage() {
 
                   {/* Screenshot Preview */}
                   {item.data.paymentScreenshotUrl && (
-                    <a
-                      href={item.data.paymentScreenshotUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <div
+                      onClick={() => setSelectedImageModal({ url: item.data.paymentScreenshotUrl!, name: item.data.fullName })}
                       style={{
                         width: '6rem',
                         height: '6rem',
@@ -406,16 +405,32 @@ export default function ReviewPage() {
                         flexShrink: 0,
                         border: '1.5px solid rgba(242, 158, 19, 0.3)',
                         boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
-                        display: 'block',
+                        cursor: 'pointer',
+                        position: 'relative',
                       }}
-                      title="تكبير صورة الإيصال"
+                      title="اضغط لمشاهدة الإيصال بوضوح"
                     >
                       <img
                         src={item.data.paymentScreenshotUrl}
                         alt="إيصال الدفع"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                       />
-                    </a>
+                      <div style={{
+                        position: 'absolute',
+                        inset: 0,
+                        background: 'rgba(0,0,0,0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="11" cy="11" r="8" />
+                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                          <line x1="11" y1="8" x2="11" y2="14" />
+                          <line x1="8" y1="11" x2="14" y2="11" />
+                        </svg>
+                      </div>
+                    </div>
                   )}
                 </div>
 
@@ -532,6 +547,115 @@ export default function ReviewPage() {
               تحميل المزيد من الطلبات
             </button>
           )}
+        </div>
+      )}
+
+      {/* Full-Screen Lightbox Image Preview Modal */}
+      {selectedImageModal && (
+        <div
+          onClick={() => setSelectedImageModal(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 99999,
+            background: 'rgba(0, 0, 0, 0.92)',
+            backdropFilter: 'blur(12px)',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1.5rem',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              maxWidth: '44rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              marginBottom: '1rem',
+            }}
+          >
+            <h3 style={{ color: '#f7f0e4', fontWeight: 800, fontSize: '1.125rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect width="18" height="18" x="3" y="3" rx="2" />
+                <circle cx="9" cy="9" r="2" />
+                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+              </svg>
+              <span>معاينة إيصال الدفع {selectedImageModal.name ? `— ${selectedImageModal.name}` : ''}</span>
+            </h3>
+
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+              <a
+                href={selectedImageModal.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  background: 'rgba(255, 255, 255, 0.12)',
+                  border: '1px solid rgba(255, 255, 255, 0.25)',
+                  color: '#fff',
+                  padding: '0.4rem 0.875rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  textDecoration: 'none',
+                }}
+              >
+                فتح الحجم الأصلي ↗
+              </a>
+              <button
+                onClick={() => setSelectedImageModal(null)}
+                style={{
+                  background: 'rgba(239, 68, 68, 0.85)',
+                  border: 'none',
+                  color: '#fff',
+                  width: '2.25rem',
+                  height: '2.25rem',
+                  borderRadius: '50%',
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="glass-card"
+            style={{
+              maxWidth: '44rem',
+              maxHeight: '80vh',
+              padding: '0.75rem',
+              borderRadius: '1rem',
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(19, 12, 5, 0.95)',
+              border: '1px solid rgba(242, 158, 19, 0.3)',
+              boxShadow: '0 20px 50px rgba(0,0,0,0.8)',
+            }}
+          >
+            <img
+              src={selectedImageModal.url}
+              alt="إيصال الدفع"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '75vh',
+                objectFit: 'contain',
+                borderRadius: '0.625rem',
+              }}
+            />
+          </div>
         </div>
       )}
     </div>

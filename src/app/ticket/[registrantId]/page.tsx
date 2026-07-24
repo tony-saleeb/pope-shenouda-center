@@ -262,7 +262,7 @@ export default function TicketPage() {
           {/* QR Code */}
           {ticket?.qrImageUrl ? (
             <div style={{
-              padding: '1.5rem',
+              padding: '0.625rem',
               background: 'white',
               borderRadius: '1rem',
               marginBottom: '1.5rem',
