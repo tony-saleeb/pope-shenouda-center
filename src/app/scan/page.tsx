@@ -172,11 +172,22 @@ export default function ScanPage() {
         html5QrScannerRef.current = scanner;
 
         await scanner.start(
-          { facingMode: 'environment' },
           {
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1,
+            facingMode: 'environment',
+            width: { min: 640, ideal: 1280 },
+            height: { min: 480, ideal: 720 },
+          },
+          {
+            fps: 25,
+            qrbox: (viewfinderWidth, viewfinderHeight) => {
+              const minEdgePercentage = 0.85;
+              const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+              const qrboxSize = Math.floor(minEdge * minEdgePercentage);
+              return {
+                width: qrboxSize,
+                height: qrboxSize,
+              };
+            },
           },
           (decodedText) => {
             handleScanRef.current(decodedText);
