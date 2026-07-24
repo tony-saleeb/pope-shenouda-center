@@ -16,14 +16,13 @@ export default function HomePage() {
           height: '6.5rem',
           margin: '0 auto 1.5rem',
           borderRadius: '50%',
-          background: 'rgba(255, 255, 255, 0.08)',
-          border: '1.5px solid rgba(242, 158, 19, 0.35)',
+          background: '#ffffff',
+          border: '2px solid #fbba33',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-          padding: '0.75rem',
-          backdropFilter: 'blur(10px)',
+          boxShadow: '0 8px 32px rgba(251, 186, 51, 0.35)',
+          padding: '0.625rem',
         }}>
           <img
             src="/icon.png"
