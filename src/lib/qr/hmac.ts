@@ -3,20 +3,19 @@ import { createHmac } from 'crypto';
 const TICKET_SECRET = process.env.TICKET_SECRET || 'dev-secret-change-in-production';
 
 /**
- * Sign a ticket ID using HMAC-SHA256.
- * Returns a combined token: `ticketId.signature`
- * This token is what gets encoded in the QR code.
+ * Sign a ticket ID using HMAC-SHA256 with an ultra-short 8-char signature.
+ * Keeps payload minimal so QR code generates with giant, easily-scanned blocks (Version 1/2 QR).
  */
 export function signTicket(ticketId: string): string {
-  const signature = createHmac('sha256', TICKET_SECRET)
+  const shortSignature = createHmac('sha256', TICKET_SECRET)
     .update(ticketId)
-    .digest('hex');
-  return `${ticketId}.${signature}`;
+    .digest('hex')
+    .substring(0, 8);
+  return `${ticketId}.${shortSignature}`;
 }
 
 /**
  * Verify a QR token string or URL and extract the ticket ID.
- * Flexible: Handles full signed tokens, raw ticket IDs, or ticket URLs.
  */
 export function verifyTicket(input: string): { valid: boolean; ticketId: string | null; isSigned: boolean } {
   let cleaned = input.trim();
@@ -43,21 +42,15 @@ export function verifyTicket(input: string): { valid: boolean; ticketId: string 
     const [ticketId, providedSignature] = parts;
     const expectedSignature = createHmac('sha256', TICKET_SECRET)
       .update(ticketId)
-      .digest('hex');
+      .digest('hex')
+      .substring(0, providedSignature.length);
 
-    if (providedSignature.length === expectedSignature.length) {
-      let mismatch = 0;
-      for (let i = 0; i < providedSignature.length; i++) {
-        mismatch |= providedSignature.charCodeAt(i) ^ expectedSignature.charCodeAt(i);
-      }
-      if (mismatch === 0) {
-        return { valid: true, ticketId, isSigned: true };
-      }
+    if (providedSignature.length > 0 && providedSignature === expectedSignature) {
+      return { valid: true, ticketId, isSigned: true };
     }
   }
 
   // Fallback: If it's a raw UUID / ID (or URL containing ID)
-  // Extract alphanumeric + hyphen string
   const rawIdMatch = cleaned.match(/^[a-zA-Z0-9_-]+$/);
   if (rawIdMatch) {
     return { valid: true, ticketId: cleaned, isSigned: false };

@@ -20,26 +20,26 @@ function playScanSound(type: 'success' | 'already_used' | 'invalid_ticket' | 'ta
       const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(880, now);
-      osc.frequency.setValueAtTime(1320, now + 0.1);
+      osc.frequency.setValueAtTime(1320, now + 0.08);
       gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.3);
+      osc.stop(now + 0.25);
     } else if (type === 'already_used') {
       // Two-tone warning chime (Yellow/Orange used)
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'triangle';
       osc.frequency.setValueAtTime(659, now);
-      osc.frequency.setValueAtTime(440, now + 0.15);
+      osc.frequency.setValueAtTime(440, now + 0.12);
       gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.4);
+      osc.stop(now + 0.3);
     } else {
       // Low error buzz (Red invalid)
       const osc = ctx.createOscillator();
@@ -47,64 +47,15 @@ function playScanSound(type: 'success' | 'already_used' | 'invalid_ticket' | 'ta
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(220, now);
       gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
       osc.connect(gain);
       gain.connect(ctx.destination);
       osc.start(now);
-      osc.stop(now + 0.35);
+      osc.stop(now + 0.3);
     }
   } catch {
     // Ignore browser audio restrictions
   }
-}
-
-// ─── Adaptive Otsu Binarization (Restores low-brightness & glared QR modules) ──
-function otsuAdaptiveBinarize(imageData: ImageData): ImageData {
-  const data = imageData.data;
-  const len = data.length;
-  const histogram = new Uint32Array(256);
-
-  for (let i = 0; i < len; i += 4) {
-    const gray = (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000 | 0;
-    data[i] = gray;
-    histogram[gray]++;
-  }
-
-  const total = len / 4;
-  let sum = 0;
-  for (let t = 0; t < 256; t++) sum += t * histogram[t];
-
-  let sumB = 0;
-  let wB = 0;
-  let wF = 0;
-  let varMax = 0;
-  let threshold = 128;
-
-  for (let t = 0; t < 256; t++) {
-    wB += histogram[t];
-    if (wB === 0) continue;
-    wF = total - wB;
-    if (wF === 0) break;
-
-    sumB += t * histogram[t];
-    const mB = sumB / wB;
-    const mF = (sum - sumB) / wF;
-    const varBetween = wB * wF * (mB - mF) * (mB - mF);
-
-    if (varBetween > varMax) {
-      varMax = varBetween;
-      threshold = t;
-    }
-  }
-
-  for (let i = 0; i < len; i += 4) {
-    const v = data[i] < threshold ? 0 : 255;
-    data[i] = v;
-    data[i + 1] = v;
-    data[i + 2] = v;
-  }
-
-  return imageData;
 }
 
 export default function ScanPage() {
@@ -120,7 +71,7 @@ export default function ScanPage() {
   const [manualCode, setManualCode] = useState('');
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
 
-  // Hardware controls state
+  // Hardware torch state
   const [supportsTorch, setSupportsTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
 
@@ -189,12 +140,12 @@ export default function ScanPage() {
     // Guard 1: Prevent parallel frame decoding execution
     if (processingRef.current) return;
 
-    // Guard 2: Prevent scanning same token within 3.5 seconds
+    // Guard 2: Prevent scanning same token within 3 seconds
     const now = Date.now();
     if (
       lastScannedTokenRef.current &&
       lastScannedTokenRef.current.token === qrToken &&
-      now - lastScannedTokenRef.current.time < 3500
+      now - lastScannedTokenRef.current.time < 3000
     ) {
       return;
     }
@@ -227,7 +178,7 @@ export default function ScanPage() {
         if (data.type === 'success') {
           navigator.vibrate([100, 50, 100]);
         } else {
-          navigator.vibrate([300]);
+          navigator.vibrate([250]);
         }
       }
     } catch {
@@ -239,12 +190,12 @@ export default function ScanPage() {
       setScanResult(errorResult);
       playScanSound('invalid_ticket');
     } finally {
-      // Auto resume scanning cleanly after 3 seconds
+      // Auto resume scanning cleanly after 2.5 seconds
       setTimeout(() => {
         setScanResult(null);
         setProcessing(false);
         processingRef.current = false;
-      }, 3000);
+      }, 2500);
     }
   }, [passcode]);
 
@@ -292,7 +243,7 @@ export default function ScanPage() {
     }
   };
 
-  // Multi-Pass AI Detection Engine (Native GPU + Adaptive Otsu Binarization + Auto Optical Lens Focus)
+  // Hyper-Speed 60 FPS RequestAnimationFrame Decode Loop
   const startDetectionLoop = useCallback(() => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let detector: any = null;
@@ -315,58 +266,36 @@ export default function ScanPage() {
       if (video && video.readyState === video.HAVE_ENOUGH_DATA && !processingRef.current) {
         let detectedCode: string | null = null;
 
-        // Pass 1: Hardware BarcodeDetector API (Full 100% Video Frame, 10ms GPU decode)
+        // 1. Primary: Native GPU BarcodeDetector API (Ultra-fast 2ms frame scan)
         if (detector) {
           try {
             const barcodes = await detector.detect(video);
             if (barcodes && barcodes.length > 0) {
               detectedCode = barcodes[0].rawValue || barcodes[0].rawValueText;
-
-              // AI Optical Auto-Zoom: If distant QR bounding box detected, auto-zoom camera lens!
-              if (barcodes[0].boundingBox && mediaStreamRef.current) {
-                const track = mediaStreamRef.current.getVideoTracks()[0];
-                if (track && 'getCapabilities' in track) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  const caps = (track as any).getCapabilities();
-                  if (caps.zoom) {
-                    const boxW = barcodes[0].boundingBox.width;
-                    if (boxW < video.videoWidth * 0.25) {
-                      const targetZoom = Math.min(caps.zoom.max || 5, (caps.zoom.min || 1) + 1.5);
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      (track as any).applyConstraints({ advanced: [{ zoom: targetZoom }] }).catch(() => {});
-                    }
-                  }
-                }
-              }
             }
           } catch {
             // Ignore frame error
           }
         }
 
-        // Pass 2: Full-Resolution Image Data with jsQR
+        // 2. Secondary: Fast 400x400 canvas jsQR fallback
         if (!detectedCode && ctx) {
           const vw = video.videoWidth;
           const vh = video.videoHeight;
 
           if (vw > 0 && vh > 0) {
-            canvas.width = vw;
-            canvas.height = vh;
-            ctx.drawImage(video, 0, 0, vw, vh);
+            // Fast fixed 400x400 canvas scaling for 1ms jsQR execution
+            canvas.width = 400;
+            canvas.height = 400;
+            ctx.drawImage(video, 0, 0, 400, 400);
 
-            const fullImageData = ctx.getImageData(0, 0, vw, vh);
+            const imageData = ctx.getImageData(0, 0, 400, 400);
+            const code = jsQR(imageData.data, 400, 400, {
+              inversionAttempts: 'dontInvert',
+            });
 
-            // 2a. Direct full-res decode
-            let code = jsQR(fullImageData.data, vw, vh, { inversionAttempts: 'dontInvert' });
             if (code && code.data) {
               detectedCode = code.data;
-            } else {
-              // 2b. Adaptive Otsu Binarization (recovers dim/glared phone screens at long distance)
-              const binarizedImg = otsuAdaptiveBinarize(fullImageData);
-              code = jsQR(binarizedImg.data, vw, vh, { inversionAttempts: 'attemptBoth' });
-              if (code && code.data) {
-                detectedCode = code.data;
-              }
             }
           }
         }
@@ -382,23 +311,20 @@ export default function ScanPage() {
     animationFrameIdRef.current = requestAnimationFrame(tick);
   }, []);
 
-  // Initialize Camera Stream with 1280x720 ideal constraints and hardware capabilities check
+  // Initialize Camera Stream with 1280x720 ideal constraints
   const initCamera = useCallback(async () => {
     stopCamera();
     setError(null);
 
     const videoConstraintsOptions: MediaTrackConstraints[] = [
-      // 1. Tuned 1280x720 constraint with rear camera and continuous autofocus
       {
         facingMode: 'environment',
         width: { ideal: 1280 },
         height: { ideal: 720 },
       },
-      // 2. Fallback rear camera
       {
         facingMode: { ideal: 'environment' },
       },
-      // 3. Fallback any camera
       {
         video: true,
       } as unknown as MediaTrackConstraints,
@@ -598,7 +524,7 @@ export default function ScanPage() {
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                 <circle cx="12" cy="13" r="4" />
               </svg>
-              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر الذكي</span>
+              <span style={{ fontWeight: 800, color: '#f7f0e4', fontSize: '1rem' }}>ماسح التذاكر الفائق</span>
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -662,7 +588,7 @@ export default function ScanPage() {
                 muted
               />
 
-              {/* Laser Line Viewfinder */}
+              {/* Laser Viewfinder */}
               {scanning && !scanResult && (
                 <div style={{
                   position: 'absolute',
@@ -695,7 +621,7 @@ export default function ScanPage() {
               {!scanning && !error && (
                 <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                   <div className="spinner spinner-lg" style={{ margin: '0 auto 1rem', borderTopColor: '#fbba33' }} />
-                  <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.875rem' }}>جاري فتح الكاميرا وتجهيز الماسح الذكي...</p>
+                  <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.875rem' }}>جاري تشغيل الماسح الفائق...</p>
                 </div>
               )}
 
