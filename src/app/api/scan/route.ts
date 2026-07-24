@@ -57,55 +57,74 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: Verify HMAC signature
+    // Step 1: Verify HMAC signature or extract ticketId/URL
     const { valid, ticketId } = verifyTicket(qrToken);
 
     if (!valid || !ticketId) {
       return NextResponse.json(
         {
           type: 'tampered',
-          message: 'QR code signature is invalid — possible tampering',
-          messageAr: 'غير صالح — رمز QR مزوّر',
+          message: 'QR code signature is invalid',
+          messageAr: 'رمز QR غير صالح أو منتهي الصلاحية',
         },
-        { status: 403 }
+        { status: 400 }
       );
     }
 
     // Step 2: Atomic check-in via Firestore transaction
     const db = getAdminDb();
+
+    // Check if ticket exists first
+    let actualTicketId = ticketId;
+    const ticketDocRef = db.collection('tickets').doc(ticketId);
+    const directSnap = await ticketDocRef.get();
+
+    if (!directSnap.exists) {
+      const byRegSnap = await db.collection('tickets').where('registrantId', '==', ticketId).limit(1).get();
+      if (!byRegSnap.empty) {
+        actualTicketId = byRegSnap.docs[0].id;
+      }
+    }
+
     const result = await db.runTransaction(async (transaction) => {
-      const ticketRef = db.collection('tickets').doc(ticketId);
-      const ticketSnap = await transaction.get(ticketRef);
+      const targetTicketRef = db.collection('tickets').doc(actualTicketId);
+      const ticketSnap = await transaction.get(targetTicketRef);
 
       if (!ticketSnap.exists) {
         return { type: 'invalid_ticket' as const };
       }
 
       const ticketData = ticketSnap.data()!;
+      const regId = ticketData.registrantId || actualTicketId;
+
+      // Get registrant info
+      const regRef = db.collection('registrants').doc(regId);
+      const regSnap = await transaction.get(regRef);
+      const regData = regSnap.data();
+
+      const registrantName = regData?.fullName || ticketData.registrantName || 'زائر';
+      const church = regData?.church || ticketData.church || '';
 
       if (ticketData.used) {
         return {
           type: 'already_used' as const,
           usedAt: ticketData.usedAt?.toDate?.()?.toISOString() || null,
+          registrantName,
+          church,
         };
       }
 
       // Mark as used atomically
-      transaction.update(ticketRef, {
+      transaction.update(targetTicketRef, {
         used: true,
         usedAt: FieldValue.serverTimestamp(),
         usedByUsherId: usherId,
       });
 
-      // Get registrant info for the success response
-      const regRef = db.collection('registrants').doc(ticketId);
-      const regSnap = await transaction.get(regRef);
-      const regData = regSnap.data();
-
       return {
         type: 'success' as const,
-        registrantName: regData?.fullName || 'Unknown',
-        church: regData?.church || 'Unknown',
+        registrantName,
+        church,
       };
     });
 
@@ -116,19 +135,18 @@ export async function POST(request: NextRequest) {
           registrantName: result.registrantName,
           church: result.church,
           message: 'Check-in successful',
-          messageAr: 'تم الدخول بنجاح',
+          messageAr: 'تم الدخول بنجاح ✓',
         });
 
       case 'already_used':
-        return NextResponse.json(
-          {
-            type: 'already_used',
-            usedAt: result.usedAt,
-            message: 'Ticket already used',
-            messageAr: 'تم الدخول من قبل',
-          },
-          { status: 409 }
-        );
+        return NextResponse.json({
+          type: 'already_used',
+          registrantName: result.registrantName,
+          church: result.church,
+          usedAt: result.usedAt,
+          message: 'Ticket already used',
+          messageAr: 'تنبيه: التذكرة مستعملة من قبل!',
+        });
 
       case 'invalid_ticket':
         return NextResponse.json(

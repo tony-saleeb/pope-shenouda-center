@@ -21,6 +21,10 @@ export default function ScanPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const html5QrScannerRef = useRef<any>(null);
 
+  // Synchronous lock refs to block race conditions from fast camera frames
+  const processingRef = useRef<boolean>(false);
+  const lastScannedTokenRef = useRef<{ token: string; time: number } | null>(null);
+
   // Check stored passcode on mount
   useEffect(() => {
     const stored = localStorage.getItem('usher_passcode');
@@ -76,8 +80,26 @@ export default function ScanPage() {
     }
   };
 
-  const handleScan = useCallback(async (qrToken: string) => {
-    if (processing) return;
+  const handleScan = useCallback(async (rawQrToken: string) => {
+    const qrToken = rawQrToken.trim();
+    if (!qrToken) return;
+
+    // 1. Guard against parallel calls from video frames
+    if (processingRef.current) return;
+
+    // 2. Guard against duplicate immediate scan of same QR within 4 seconds
+    const now = Date.now();
+    if (
+      lastScannedTokenRef.current &&
+      lastScannedTokenRef.current.token === qrToken &&
+      now - lastScannedTokenRef.current.time < 4000
+    ) {
+      return;
+    }
+
+    // Lock immediately synchronously
+    processingRef.current = true;
+    lastScannedTokenRef.current = { token: qrToken, time: now };
     setProcessing(true);
     setScanResult(null);
 
@@ -97,7 +119,7 @@ export default function ScanPage() {
       setScanResult(data);
       setScanHistory((prev) => [data, ...prev].slice(0, 15));
 
-      // Haptic feedback if available
+      // Haptic feedback
       if (typeof navigator !== 'undefined' && navigator.vibrate) {
         if (data.type === 'success') {
           navigator.vibrate([100, 50, 100]);
@@ -105,12 +127,6 @@ export default function ScanPage() {
           navigator.vibrate([300]);
         }
       }
-
-      // Auto-clear result overlay after 4 seconds
-      setTimeout(() => {
-        setScanResult(null);
-        setProcessing(false);
-      }, 4000);
     } catch {
       const errorResult: ScanResult = {
         type: 'invalid_ticket',
@@ -118,9 +134,27 @@ export default function ScanPage() {
         messageAr: 'خطأ في الاتصال — تأكد من اتصالك بالإنترنت',
       };
       setScanResult(errorResult);
-      setProcessing(false);
+    } finally {
+      // Auto unlock overlay after 3.5 seconds
+      setTimeout(() => {
+        setScanResult(null);
+        setProcessing(false);
+        processingRef.current = false;
+      }, 3500);
     }
-  }, [processing, passcode]);
+  }, [passcode]);
+
+  // Keep a ref to handleScan so camera callback always calls latest version
+  const handleScanRef = useRef(handleScan);
+  useEffect(() => {
+    handleScanRef.current = handleScan;
+  }, [handleScan]);
+
+  const resetOverlay = () => {
+    setScanResult(null);
+    setProcessing(false);
+    processingRef.current = false;
+  };
 
   // Initialize QR scanner when authenticated
   useEffect(() => {
@@ -145,7 +179,7 @@ export default function ScanPage() {
             aspectRatio: 1,
           },
           (decodedText) => {
-            handleScan(decodedText);
+            handleScanRef.current(decodedText);
           },
           () => {
             // Ignore frame scan errors
@@ -171,7 +205,7 @@ export default function ScanPage() {
         }
       }
     };
-  }, [authenticated, handleScan]);
+  }, [authenticated]);
 
   // ─── Render Passcode Gate ──────────────────────────────────────────
   if (!authenticated) {
@@ -350,40 +384,40 @@ export default function ScanPage() {
               </div>
             )}
 
-            {/* Scan Overlay Result */}
+            {/* Scan Result Overlay */}
             {scanResult && (
               <div style={{
                 position: 'absolute',
                 inset: 0,
                 background: scanResult.type === 'success'
-                  ? 'rgba(16, 185, 129, 0.95)'
+                  ? 'rgba(16, 185, 129, 0.96)'
                   : scanResult.type === 'already_used'
-                  ? 'rgba(245, 158, 11, 0.95)'
-                  : 'rgba(239, 68, 68, 0.95)',
+                  ? 'rgba(217, 119, 6, 0.96)'
+                  : 'rgba(220, 38, 38, 0.96)',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: '2rem 1.5rem',
+                padding: '1.5rem 1.25rem',
                 textAlign: 'center',
                 color: '#fff',
                 zIndex: 10,
-                backdropFilter: 'blur(8px)',
+                backdropFilter: 'blur(10px)',
               }}>
-                <div style={{ marginBottom: '0.75rem' }}>
+                <div style={{ marginBottom: '0.5rem' }}>
                   {scanResult.type === 'success' ? (
-                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                       <polyline points="22 4 12 14.01 9 11.01" />
                     </svg>
                   ) : scanResult.type === 'already_used' ? (
-                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                       <line x1="12" y1="9" x2="12" y2="13" />
                       <line x1="12" y1="17" x2="12.01" y2="17" />
                     </svg>
                   ) : (
-                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <circle cx="12" cy="12" r="10" />
                       <line x1="15" y1="9" x2="9" y2="15" />
                       <line x1="9" y1="9" x2="15" y2="15" />
@@ -391,16 +425,35 @@ export default function ScanPage() {
                   )}
                 </div>
 
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+                <h2 style={{ fontSize: '1.375rem', fontWeight: 900, marginBottom: '0.375rem' }}>
                   {scanResult.messageAr}
                 </h2>
 
                 {scanResult.registrantName && (
-                  <div style={{ marginTop: '0.5rem', background: 'rgba(0,0,0,0.2)', padding: '0.75rem 1.25rem', borderRadius: '0.75rem' }}>
-                    <p style={{ fontSize: '1.25rem', fontWeight: 800 }}>{scanResult.registrantName}</p>
-                    <p style={{ fontSize: '0.875rem', opacity: 0.9 }}>{scanResult.church}</p>
+                  <div style={{ marginTop: '0.5rem', background: 'rgba(0,0,0,0.25)', padding: '0.625rem 1rem', borderRadius: '0.75rem', width: '100%', maxWidth: '18rem' }}>
+                    <p style={{ fontSize: '1.125rem', fontWeight: 800, color: '#ffffff' }}>{scanResult.registrantName}</p>
+                    {scanResult.church && (
+                      <p style={{ fontSize: '0.8125rem', opacity: 0.9, marginTop: '0.125rem' }}>{scanResult.church}</p>
+                    )}
                   </div>
                 )}
+
+                <button
+                  onClick={resetOverlay}
+                  style={{
+                    marginTop: '1.25rem',
+                    background: 'rgba(255, 255, 255, 0.25)',
+                    border: '1px solid rgba(255, 255, 255, 0.4)',
+                    color: '#fff',
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '0.625rem',
+                    fontSize: '0.875rem',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                  }}
+                >
+                  فحص تذكرة أخرى ➔
+                </button>
               </div>
             )}
           </div>
@@ -460,7 +513,7 @@ export default function ScanPage() {
                       color: item.type === 'success' ? '#10b981' : item.type === 'already_used' ? '#fbba33' : '#ef4444',
                       fontWeight: 700,
                     }}>
-                      {item.type === 'success' ? 'مقبول' : item.type === 'already_used' ? 'مستعمل' : 'خطأ'}
+                      {item.type === 'success' ? 'مقبول ✓' : item.type === 'already_used' ? 'مستعمل مسبقاً' : 'خطأ'}
                     </span>
                   </div>
                 ))}
