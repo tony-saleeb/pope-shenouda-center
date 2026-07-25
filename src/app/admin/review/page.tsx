@@ -72,6 +72,8 @@ export default function ReviewPage() {
     fetchItems();
   }, [activeTab, fetchItems]);
 
+  const [autoOpenWhatsApp, setAutoOpenWhatsApp] = useState(true);
+
   const handleAction = async (registrantId: string, action: 'approve' | 'reject') => {
     if (!user) return;
     setActionLoading(registrantId);
@@ -88,8 +90,14 @@ export default function ReviewPage() {
       });
 
       if (response.ok) {
+        const resData = await response.json();
         if (action === 'approve') {
           setApprovedItems((prev) => new Set(prev).add(registrantId));
+          // Auto-open WhatsApp with pre-filled message + ticket link
+          const targetItem = items.find((i) => i.id === registrantId);
+          if (targetItem && autoOpenWhatsApp && !resData.whatsappSent) {
+            window.open(getWhatsAppUrl(targetItem), '_blank');
+          }
         } else {
           setItems((prev) => prev.filter((item) => item.id !== registrantId));
         }
@@ -162,26 +170,51 @@ export default function ReviewPage() {
           </p>
         </div>
 
-        <button
-          className="btn btn-ghost"
-          onClick={() => { setLoading(true); fetchItems(); }}
-          style={{
-            padding: '0.625rem 1.25rem',
-            fontSize: '0.875rem',
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+          <label style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.5rem',
-            background: 'rgba(19, 12, 5, 0.6)',
-            border: '1px solid rgba(242, 158, 19, 0.2)',
-            color: '#f7f0e4',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="23 4 23 10 17 10" />
-            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-          </svg>
-          <span>تحديث القائمة</span>
-        </button>
+            gap: '0.625rem',
+            cursor: 'pointer',
+            padding: '0.5rem 1rem',
+            borderRadius: '0.625rem',
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            color: '#10b981',
+            fontSize: '0.8125rem',
+            fontWeight: 700,
+            userSelect: 'none',
+          }}>
+            <input
+              type="checkbox"
+              checked={autoOpenWhatsApp}
+              onChange={(e) => setAutoOpenWhatsApp(e.target.checked)}
+              style={{ accentColor: '#10b981', width: '1.125rem', height: '1.125rem', cursor: 'pointer' }}
+            />
+            <span>💬 فتح الواتساب تلقائياً عند قبول الطلب</span>
+          </label>
+
+          <button
+            className="btn btn-ghost"
+            onClick={() => { setLoading(true); fetchItems(); }}
+            style={{
+              padding: '0.625rem 1.25rem',
+              fontSize: '0.875rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              background: 'rgba(19, 12, 5, 0.6)',
+              border: '1px solid rgba(242, 158, 19, 0.2)',
+              color: '#f7f0e4',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="23 4 23 10 17 10" />
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+            </svg>
+            <span>تحديث القائمة</span>
+          </button>
+        </div>
       </div>
 
       {/* Navigation Tabs */}

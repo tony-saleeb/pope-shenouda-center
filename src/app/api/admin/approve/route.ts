@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { signTicket } from '@/lib/qr/hmac';
 import { FieldValue } from 'firebase-admin/firestore';
 import { generateQrCodeDataUrl } from '@/lib/qr/generator';
+import { sendAutomatedWhatsAppTicket } from '@/lib/whatsapp/api';
 
 export async function POST(request: NextRequest) {
   const authResult = await requireAdmin(request);
@@ -27,6 +28,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Registrant not found' }, { status: 404 });
     }
 
+    const regData = regSnap.data()!;
+
     await registrantRef.update({
       status: 'approved',
       verifiedAt: FieldValue.serverTimestamp(),
@@ -48,9 +51,14 @@ export async function POST(request: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
+    // Background Automated WhatsApp Send attempt
+    const targetPhone = regData.whatsappNumber || regData.phoneNumber || '';
+    const whatsappResult = await sendAutomatedWhatsAppTicket(targetPhone, registrantId);
+
     return NextResponse.json({
       success: true,
       message: 'Registrant approved and ticket generated',
+      whatsappSent: whatsappResult.sent,
     });
   } catch (error) {
     console.error('Approve error:', error);
