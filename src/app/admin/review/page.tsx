@@ -76,6 +76,14 @@ export default function ReviewPage() {
 
   const handleAction = async (registrantId: string, action: 'approve' | 'reject') => {
     if (!user) return;
+
+    // Open popup tab synchronously BEFORE fetch to bypass browser popup blockers
+    let waWindow: Window | null = null;
+    const targetItem = items.find((i) => i.id === registrantId);
+    if (action === 'approve' && autoOpenWhatsApp && targetItem) {
+      waWindow = window.open('about:blank', '_blank');
+    }
+
     setActionLoading(registrantId);
 
     try {
@@ -93,19 +101,22 @@ export default function ReviewPage() {
         const resData = await response.json();
         if (action === 'approve') {
           setApprovedItems((prev) => new Set(prev).add(registrantId));
-          // Auto-open WhatsApp with pre-filled message + ticket link
-          const targetItem = items.find((i) => i.id === registrantId);
-          if (targetItem && autoOpenWhatsApp && !resData.whatsappSent) {
-            window.open(getWhatsAppUrl(targetItem), '_blank');
+          if (targetItem && waWindow && !resData.whatsappSent) {
+            waWindow.location.href = getWhatsAppUrl(targetItem);
+          } else if (waWindow) {
+            waWindow.close();
           }
         } else {
+          if (waWindow) waWindow.close();
           setItems((prev) => prev.filter((item) => item.id !== registrantId));
         }
       } else {
+        if (waWindow) waWindow.close();
         const errData = await response.json();
         alert(errData.error || `حدث خطأ أثناء ${action === 'approve' ? 'الموافقة' : 'الرفض'}`);
       }
     } catch (error) {
+      if (waWindow) waWindow.close();
       console.error(`Error ${action}ing:`, error);
       alert('حدث خطأ في الاتصال بالسيرفر');
     } finally {
