@@ -1,16 +1,39 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import type { Registrant, Ticket } from '@/lib/types';
-import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import Header from '@/components/Header';
+import Link from 'next/link';
 
-export default function TicketPage() {
-  const params = useParams();
-  const registrantId = params.registrantId as string;
+function drawRoundedRectPath(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number
+) {
+  ctx.beginPath();
+  if (typeof ctx.roundRect === 'function') {
+    try {
+      ctx.roundRect(x, y, w, h, r);
+      return;
+    } catch {
+      // Fallback below
+    }
+  }
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+export default function TicketPage({ params }: { params: Promise<{ registrantId: string }> }) {
+  const { registrantId } = use(params);
   const [registrant, setRegistrant] = useState<Registrant | null>(null);
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,18 +43,25 @@ export default function TicketPage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const [regSnap, ticketSnap] = await Promise.all([
-          getDoc(doc(db, 'registrants', registrantId)),
-          getDoc(doc(db, 'tickets', registrantId)),
-        ]);
-
+        // Fetch registrant
+        const regSnap = await getDoc(doc(db, 'registrants', registrantId));
         if (!regSnap.exists()) {
-          setError('لم يتم العثور على هذا التسجيل');
+          setError('لم يتم العثور على التسجيل');
+          setLoading(false);
+          return;
+        }
+        const regData = regSnap.data() as Registrant;
+        setRegistrant(regData);
+
+        // Check if approved
+        if (regData.status !== 'approved' && regData.status !== 'auto_approved') {
+          setError('التسجيل غير مقبول بعد — التذكرة تظهر فقط للطلبات المقبولة');
           setLoading(false);
           return;
         }
 
-        setRegistrant(regSnap.data() as Registrant);
+        // Fetch ticket
+        const ticketSnap = await getDoc(doc(db, 'tickets', registrantId));
 
         if (ticketSnap.exists()) {
           setTicket(ticketSnap.data() as Ticket);
@@ -51,115 +81,134 @@ export default function TicketPage() {
   }, [registrantId]);
 
   /**
-   * Universal download that works on ALL mobile browsers (iOS Safari, Chrome, Android).
-   * Uses canvas to render a full ticket card with QR code + registrant info as a single PNG.
+   * Universal download rendering a full dark-gold glassmorphic ticket card PNG
+   * 100% identical in style to the website design.
    */
   const handleDownload = async () => {
     if (!ticket?.qrImageUrl || !registrant) return;
     setDownloading(true);
 
     try {
-      // Create a canvas-based ticket image
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Canvas not supported');
 
-      const width = 600;
-      const height = 900;
+      const width = 640;
+      const height = 980;
       canvas.width = width;
       canvas.height = height;
 
-      // Background gradient
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, '#1a0f05');
-      gradient.addColorStop(0.5, '#2d1a0a');
-      gradient.addColorStop(1, '#1a0f05');
-      ctx.fillStyle = gradient;
+      // 1. Dark Background
+      const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+      bgGrad.addColorStop(0, '#130c05');
+      bgGrad.addColorStop(0.5, '#1f1306');
+      bgGrad.addColorStop(1, '#0c0703');
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
-      // Gold border
-      ctx.strokeStyle = 'rgba(251, 186, 51, 0.4)';
-      ctx.lineWidth = 3;
-      ctx.roundRect(15, 15, width - 30, height - 30, 20);
-      ctx.stroke();
+      // 2. Glassmorphic Card Container
+      const cardMargin = 24;
+      const cardW = width - cardMargin * 2;
+      const cardH = height - cardMargin * 2;
 
-      // Header band
-      const headerGrad = ctx.createLinearGradient(0, 0, width, 120);
-      headerGrad.addColorStop(0, '#b8860b');
-      headerGrad.addColorStop(1, '#d4a017');
-      ctx.fillStyle = headerGrad;
-      ctx.roundRect(30, 30, width - 60, 110, [15, 15, 0, 0]);
+      const cardGrad = ctx.createLinearGradient(cardMargin, cardMargin, cardMargin + cardW, cardMargin + cardH);
+      cardGrad.addColorStop(0, 'rgba(31, 19, 6, 0.95)');
+      cardGrad.addColorStop(1, 'rgba(19, 12, 5, 0.98)');
+      ctx.fillStyle = cardGrad;
+      drawRoundedRectPath(ctx, cardMargin, cardMargin, cardW, cardH, 24);
       ctx.fill();
 
-      // Header text
-      ctx.fillStyle = '#1a0f05';
-      ctx.font = 'bold 18px Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('تذكرة دخول', width / 2, 70);
-      ctx.font = 'bold 28px Arial, sans-serif';
-      ctx.fillText('مؤتمر الكنيسة', width / 2, 115);
+      // Card Gold Border
+      ctx.strokeStyle = 'rgba(251, 186, 51, 0.4)';
+      ctx.lineWidth = 2.5;
+      drawRoundedRectPath(ctx, cardMargin, cardMargin, cardW, cardH, 24);
+      ctx.stroke();
 
-      // QR Code
+      // 3. Header Subtitle & Main Title
+      ctx.fillStyle = 'rgba(247, 240, 228, 0.65)';
+      ctx.font = '600 17px system-ui, -apple-system, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('تذكرة دخول', width / 2, 75);
+
+      ctx.fillStyle = '#f7f0e4';
+      ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
+      ctx.fillText('مؤتمر القرن العاشر', width / 2, 118);
+
+      // 4. QR Code Box (Solid White Card filling QR code edge to edge)
       const qrImg = new Image();
       qrImg.crossOrigin = 'anonymous';
 
       await new Promise<void>((resolve, reject) => {
         qrImg.onload = () => resolve();
-        qrImg.onerror = () => reject(new Error('Failed to load QR'));
+        qrImg.onerror = () => reject(new Error('Failed to load QR image'));
         qrImg.src = ticket.qrImageUrl;
       });
 
-      // White QR background
-      const qrSize = 280;
-      const qrX = (width - qrSize - 40) / 2;
-      const qrY = 170;
-      ctx.fillStyle = '#ffffff';
-      ctx.roundRect(qrX, qrY, qrSize + 40, qrSize + 40, 16);
-      ctx.fill();
-      ctx.drawImage(qrImg, qrX + 20, qrY + 20, qrSize, qrSize);
+      const qrBoxSize = 340;
+      const qrBoxX = (width - qrBoxSize) / 2;
+      const qrBoxY = 155;
 
-      // Dashed separator
+      // White QR Container Card
+      ctx.fillStyle = '#ffffff';
+      drawRoundedRectPath(ctx, qrBoxX, qrBoxY, qrBoxSize, qrBoxSize, 20);
+      ctx.fill();
+
+      // Draw QR Code Image inside white box
+      const qrPadding = 12;
+      ctx.drawImage(
+        qrImg,
+        qrBoxX + qrPadding,
+        qrBoxY + qrPadding,
+        qrBoxSize - qrPadding * 2,
+        qrBoxSize - qrPadding * 2
+      );
+
+      // 5. Gold Dashed Separator Line
       ctx.setLineDash([8, 6]);
-      ctx.strokeStyle = 'rgba(251, 186, 51, 0.3)';
-      ctx.lineWidth = 2;
+      ctx.strokeStyle = 'rgba(251, 186, 51, 0.35)';
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(50, 530);
-      ctx.lineTo(width - 50, 530);
+      ctx.moveTo(60, 535);
+      ctx.lineTo(width - 60, 535);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Registrant info
+      // 6. Registrant Info Fields
+      // Full Name
       ctx.fillStyle = '#fbba33';
-      ctx.font = 'bold 14px Arial, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('الاسم', width / 2, 575);
-      ctx.fillStyle = '#f7f0e4';
-      ctx.font = 'bold 26px Arial, sans-serif';
+      ctx.font = '700 15px system-ui, -apple-system, sans-serif';
+      ctx.fillText('الاسم الكامل', width / 2, 575);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 28px system-ui, -apple-system, sans-serif';
       ctx.fillText(registrant.fullName, width / 2, 615);
 
+      // Church
       ctx.fillStyle = '#fbba33';
-      ctx.font = 'bold 14px Arial, sans-serif';
+      ctx.font = '700 15px system-ui, -apple-system, sans-serif';
       ctx.fillText('الكنيسة', width / 2, 665);
-      ctx.fillStyle = '#f7f0e4';
-      ctx.font = '22px Arial, sans-serif';
-      ctx.fillText(registrant.church, width / 2, 700);
 
+      ctx.fillStyle = '#f7f0e4';
+      ctx.font = '600 23px system-ui, -apple-system, sans-serif';
+      ctx.fillText(registrant.church, width / 2, 702);
+
+      // Phone Number
       ctx.fillStyle = '#fbba33';
-      ctx.font = 'bold 14px Arial, sans-serif';
-      ctx.fillText('رقم الموبايل', width / 2, 750);
-      ctx.fillStyle = '#f7f0e4';
-      ctx.font = '20px Arial, sans-serif';
-      ctx.fillText(registrant.phoneNumber, width / 2, 785);
+      ctx.font = '700 15px system-ui, -apple-system, sans-serif';
+      ctx.fillText('رقم الموبايل', width / 2, 752);
 
-      // Footer
-      ctx.fillStyle = 'rgba(251, 186, 51, 0.2)';
-      ctx.font = '12px Arial, sans-serif';
-      ctx.fillText('يرجى إظهار هذه التذكرة عند الدخول', width / 2, 850);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
+      ctx.fillText(registrant.phoneNumber, width / 2, 788);
 
-      // Convert to blob and download
+      // 7. Footer Note
+      ctx.fillStyle = 'rgba(247, 240, 228, 0.55)';
+      ctx.font = '600 14px system-ui, -apple-system, sans-serif';
+      ctx.fillText('يرجى إظهار هذه التذكرة عند الدخول', width / 2, 855);
+
+      // Convert to blob and trigger download / share
       canvas.toBlob((blob) => {
         if (!blob) {
-          // Fallback: open QR in new tab
           window.open(ticket.qrImageUrl, '_blank');
           setDownloading(false);
           return;
@@ -167,28 +216,23 @@ export default function TicketPage() {
 
         const url = URL.createObjectURL(blob);
 
-        // Check if Web Share API is available (for iOS Safari and modern mobile browsers)
         if (navigator.share && navigator.canShare) {
-          const file = new File([blob], `ticket-${registrantId}.png`, { type: 'image/png' });
+          const file = new File([blob], `ticket-10century-${registrantId}.png`, { type: 'image/png' });
           const shareData = { files: [file] };
-          
+
           if (navigator.canShare(shareData)) {
             navigator.share(shareData)
-              .catch(() => {
-                // User cancelled share — fallback to download
-                fallbackDownload(url);
-              })
+              .catch(() => fallbackDownload(url))
               .finally(() => setDownloading(false));
             return;
           }
         }
 
-        // Standard download for desktop and older Android
         fallbackDownload(url);
         setDownloading(false);
       }, 'image/png');
-    } catch {
-      // Ultimate fallback: open QR image in new tab
+    } catch (err) {
+      console.error('Download ticket error:', err);
       if (ticket?.qrImageUrl) {
         window.open(ticket.qrImageUrl, '_blank');
       }
@@ -199,11 +243,10 @@ export default function TicketPage() {
   const fallbackDownload = (url: string) => {
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ticket-${registrantId}.png`;
+    a.download = `ticket-10century-${registrantId}.png`;
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
-    // Clean up after a short delay
     setTimeout(() => {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
@@ -244,136 +287,108 @@ export default function TicketPage() {
     <>
       <Header />
       <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
-      <div className="container-mobile" style={{ maxWidth: '24rem' }}>
-        <div className="glass-card" style={{ padding: '2rem 1.5rem', textAlign: 'center' }}>
-          {/* Ticket Header */}
-          <div style={{
-            background: 'linear-gradient(135deg, var(--color-primary-600), var(--color-primary-800))',
-            margin: '-2rem -1.5rem 1.5rem',
-            padding: '1.5rem',
-            borderRadius: '1.25rem 1.25rem 0 0',
-          }}>
-            <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.25rem' }}>
-              تذكرة دخول
+        <div className="container-mobile" style={{ maxWidth: '24rem' }}>
+          <div className="glass-card" style={{ padding: '2rem 1.5rem', textAlign: 'center' }}>
+            {/* Ticket Header */}
+            <div style={{ marginBottom: '1.5rem' }}>
+              <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.25rem' }}>
+                تذكرة دخول
+              </p>
+              <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>مؤتمر القرن العاشر</h1>
+            </div>
+
+            {/* QR Code */}
+            {ticket?.qrImageUrl ? (
+              <div style={{
+                padding: '0.625rem',
+                background: 'white',
+                borderRadius: '1rem',
+                marginBottom: '1.5rem',
+                display: 'inline-block',
+              }}>
+                <img
+                  src={ticket.qrImageUrl}
+                  alt="QR Code"
+                  style={{ width: '16rem', height: '16rem', maxWidth: '100%', objectFit: 'contain' }}
+                />
+              </div>
+            ) : (
+              <div style={{
+                padding: '3rem',
+                background: 'rgba(255,255,255,0.05)',
+                borderRadius: '1rem',
+                marginBottom: '1.5rem',
+                textAlign: 'center',
+              }}>
+                <p style={{ color: 'rgba(255,255,255,0.4)' }}>جاري إنشاء رمز QR...</p>
+                <div className="spinner" style={{ margin: '1rem auto 0', borderTopColor: 'var(--color-primary-500)' }} />
+              </div>
+            )}
+
+            {/* Registrant Info */}
+            <div style={{
+              borderTop: '1px dashed rgba(251, 186, 51, 0.3)',
+              paddingTop: '1.5rem',
+              display: 'grid',
+              gap: '1rem',
+            }}>
+              <div>
+                <p style={{ fontSize: '0.75rem', color: '#fbba33', fontWeight: 700, marginBottom: '0.125rem' }}>الاسم الكامل</p>
+                <p style={{ fontSize: '1.25rem', fontWeight: 800, color: '#ffffff' }}>{registrant.fullName}</p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: '0.75rem', color: '#fbba33', fontWeight: 700, marginBottom: '0.125rem' }}>الكنيسة</p>
+                <p style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(247, 240, 228, 0.9)' }}>{registrant.church}</p>
+              </div>
+
+              <div>
+                <p style={{ fontSize: '0.75rem', color: '#fbba33', fontWeight: 700, marginBottom: '0.125rem' }}>رقم الموبايل</p>
+                <p style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(247, 240, 228, 0.9)', fontFamily: 'monospace' }} dir="ltr">
+                  {registrant.phoneNumber}
+                </p>
+              </div>
+            </div>
+
+            {/* Download Button */}
+            <button
+              onClick={handleDownload}
+              className="btn btn-primary btn-full"
+              disabled={downloading}
+              style={{
+                marginTop: '2rem',
+                padding: '0.875rem',
+                fontSize: '1rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              {downloading ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span className="spinner" style={{ width: '1.25rem', height: '1.25rem' }} />
+                  جاري تجهيز الصورة...
+                </span>
+              ) : (
+                <>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>تحميل التذكرة (صورة)</span>
+                </>
+              )}
+            </button>
+
+            <p style={{ fontSize: '0.75rem', color: 'rgba(247, 240, 228, 0.45)', marginTop: '1rem' }}>
+              يرجى إظهار هذه التذكرة عند الدخول
             </p>
-            <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>مؤتمر القرن العاشر</h1>
           </div>
-
-          {/* QR Code */}
-          {ticket?.qrImageUrl ? (
-            <div style={{
-              padding: '0.625rem',
-              background: 'white',
-              borderRadius: '1rem',
-              marginBottom: '1.5rem',
-              display: 'inline-block',
-            }}>
-              <img
-                src={ticket.qrImageUrl}
-                alt="QR Code"
-                style={{ width: '16rem', height: '16rem', maxWidth: '100%', objectFit: 'contain' }}
-              />
-            </div>
-          ) : (
-            <div style={{
-              padding: '3rem',
-              background: 'rgba(255,255,255,0.05)',
-              borderRadius: '1rem',
-              marginBottom: '1.5rem',
-              textAlign: 'center',
-            }}>
-              <p style={{ color: 'rgba(255,255,255,0.4)' }}>جاري إنشاء رمز QR...</p>
-              <div className="spinner" style={{ margin: '1rem auto 0', borderTopColor: 'var(--color-primary-500)' }} />
-            </div>
-          )}
-
-          {/* Registrant Info */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>
-              {registrant.fullName}
-            </h2>
-            <p style={{ color: 'rgba(255,255,255,0.5)' }}>{registrant.church}</p>
-          </div>
-
-          {/* Dashed separator */}
-          <div style={{
-            borderTop: '2px dashed rgba(255,255,255,0.1)',
-            margin: '0 -1.5rem 1.5rem',
-            position: 'relative',
-          }}>
-            {/* Left notch */}
-            <div style={{
-              position: 'absolute',
-              left: '-0.75rem',
-              top: '-0.75rem',
-              width: '1.5rem',
-              height: '1.5rem',
-              borderRadius: '50%',
-              background: 'var(--color-surface-950)',
-            }} />
-            {/* Right notch */}
-            <div style={{
-              position: 'absolute',
-              right: '-0.75rem',
-              top: '-0.75rem',
-              width: '1.5rem',
-              height: '1.5rem',
-              borderRadius: '50%',
-              background: 'var(--color-surface-950)',
-            }} />
-          </div>
-
-          {/* Ticket Used Status */}
-          {ticket?.used && (
-            <div style={{
-              padding: '0.75rem',
-              background: 'rgba(239, 68, 68, 0.1)',
-              borderRadius: '0.75rem',
-              marginBottom: '1rem',
-            }}>
-              <p style={{ color: 'var(--color-error-500)', fontWeight: 600, fontSize: '0.875rem' }}>
-                تم استخدام هذه التذكرة
-              </p>
-            </div>
-          )}
-
-          {/* Download Button (user-facing) */}
-          {ticket?.qrImageUrl && (
-            <div style={{ display: 'grid', gap: '0.75rem' }}>
-              <button
-                className="btn btn-accent btn-full"
-                onClick={handleDownload}
-                disabled={downloading}
-                style={{
-                  opacity: downloading ? 0.7 : 1,
-                  cursor: downloading ? 'wait' : 'pointer',
-                }}
-              >
-                {downloading ? (
-                  <>
-                    <span className="spinner" style={{ width: '1.25rem', height: '1.25rem', borderTopColor: 'currentColor' }} />
-                    <span>جاري التحميل...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" x2="12" y1="15" y2="3" />
-                    </svg>
-                    <span>تحميل التذكرة</span>
-                  </>
-                )}
-              </button>
-
-              <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem', textAlign: 'center' }}>
-                يرجى إظهار هذه التذكرة عند الدخول
-              </p>
-            </div>
-          )}
         </div>
-      </div>
-    </main>
+      </main>
     </>
   );
 }
