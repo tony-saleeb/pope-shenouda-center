@@ -125,10 +125,15 @@ export default function ReviewPage() {
       `📲 رابط تذكرتك:\n${ticketUrl}\n\n` +
       `يرجى إظهار التذكرة عند الدخول.`
     );
-    const phone = item.data.whatsappNumber?.startsWith('0')
-      ? `2${item.data.whatsappNumber}`
-      : item.data.whatsappNumber || item.data.phoneNumber;
-    return `https://api.whatsapp.com/send?phone=${phone}&text=${text}`;
+    let rawPhone = item.data.whatsappNumber || item.data.phoneNumber || '';
+    let cleanPhone = rawPhone.replace(/[^0-9]/g, '');
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = '20' + cleanPhone.substring(1);
+    }
+    if (!cleanPhone.startsWith('20') && cleanPhone.length === 10) {
+      cleanPhone = '20' + cleanPhone;
+    }
+    return `https://wa.me/${cleanPhone}?text=${text}`;
   };
 
   const dismissApproved = (registrantId: string) => {
