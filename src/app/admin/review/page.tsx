@@ -72,18 +72,10 @@ export default function ReviewPage() {
     fetchItems();
   }, [activeTab, fetchItems]);
 
-  const [autoOpenWhatsApp, setAutoOpenWhatsApp] = useState(true);
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
 
   const handleAction = async (registrantId: string, action: 'approve' | 'reject') => {
     if (!user) return;
-
-    // Open popup tab synchronously BEFORE fetch to bypass browser popup blockers
-    let waWindow: Window | null = null;
-    const targetItem = items.find((i) => i.id === registrantId);
-    if (action === 'approve' && autoOpenWhatsApp && targetItem) {
-      waWindow = window.open('about:blank', '_blank');
-    }
-
     setActionLoading(registrantId);
 
     try {
@@ -101,22 +93,20 @@ export default function ReviewPage() {
         const resData = await response.json();
         if (action === 'approve') {
           setApprovedItems((prev) => new Set(prev).add(registrantId));
-          if (targetItem && waWindow && !resData.whatsappSent) {
-            waWindow.location.href = getWhatsAppUrl(targetItem);
-          } else if (waWindow) {
-            waWindow.close();
+          if (resData.whatsappSent) {
+            setNotification({ message: '✓ تم قبول الطلب وإرسال التذكرة تلقائياً عبر الواتساب!', type: 'success' });
+          } else {
+            setNotification({ message: '✓ تم قبول الطلب وتوليد التذكرة بنجاح!', type: 'info' });
           }
+          setTimeout(() => setNotification(null), 4000);
         } else {
-          if (waWindow) waWindow.close();
           setItems((prev) => prev.filter((item) => item.id !== registrantId));
         }
       } else {
-        if (waWindow) waWindow.close();
         const errData = await response.json();
         alert(errData.error || `حدث خطأ أثناء ${action === 'approve' ? 'الموافقة' : 'الرفض'}`);
       }
     } catch (error) {
-      if (waWindow) waWindow.close();
       console.error(`Error ${action}ing:`, error);
       alert('حدث خطأ في الاتصال بالسيرفر');
     } finally {
@@ -181,30 +171,7 @@ export default function ReviewPage() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-          <label style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.625rem',
-            cursor: 'pointer',
-            padding: '0.5rem 1rem',
-            borderRadius: '0.625rem',
-            background: 'rgba(16, 185, 129, 0.12)',
-            border: '1px solid rgba(16, 185, 129, 0.3)',
-            color: '#10b981',
-            fontSize: '0.8125rem',
-            fontWeight: 700,
-            userSelect: 'none',
-          }}>
-            <input
-              type="checkbox"
-              checked={autoOpenWhatsApp}
-              onChange={(e) => setAutoOpenWhatsApp(e.target.checked)}
-              style={{ accentColor: '#10b981', width: '1.125rem', height: '1.125rem', cursor: 'pointer' }}
-            />
-            <span>💬 فتح الواتساب تلقائياً عند قبول الطلب</span>
-          </label>
-
+        <div>
           <button
             className="btn btn-ghost"
             onClick={() => { setLoading(true); fetchItems(); }}
@@ -227,6 +194,24 @@ export default function ReviewPage() {
           </button>
         </div>
       </div>
+
+      {notification && (
+        <div style={{
+          marginBottom: '1.5rem',
+          padding: '0.875rem 1.25rem',
+          borderRadius: '0.75rem',
+          background: notification.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(242, 158, 19, 0.15)',
+          border: `1px solid ${notification.type === 'success' ? 'rgba(16, 185, 129, 0.4)' : 'rgba(242, 158, 19, 0.4)'}`,
+          color: notification.type === 'success' ? '#10b981' : '#fbba33',
+          fontWeight: 700,
+          fontSize: '0.9375rem',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+        }}>
+          <span>{notification.message}</span>
+        </div>
+      )}
 
       {/* Navigation Tabs */}
       <div style={{

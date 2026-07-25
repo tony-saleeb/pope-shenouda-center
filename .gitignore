@@ -42,3 +42,5 @@ next-env.d.ts
 
 .vercel
 .env*
+.whatsapp-auth
+.wwebjs_cache
