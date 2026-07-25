@@ -21,8 +21,8 @@ export async function sendAutomatedWhatsAppTicket(
 
   const ticketUrl = `${baseUrl}/ticket/${registrantId}`;
   const messageText =
-    `تم قبول تسجيلك في مؤتمر القرن العاشر بنجاح 🎉\n\n` +
-    `📲 رابط تذكرتك:\n${ticketUrl}\n\n` +
+    `تم قبول تسجيلك في مؤتمر القرن العاشر بنجاح ✅\n\n` +
+    `🔗 رابط تذكرتك:\n${ticketUrl}\n\n` +
     `يرجى إظهار التذكرة عند الدخول.`;
 
   // 1. Check Green API
