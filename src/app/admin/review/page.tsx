@@ -78,6 +78,8 @@ export default function ReviewPage() {
     if (!user) return;
     setActionLoading(registrantId);
 
+    const targetItem = items.find((i) => i.id === registrantId);
+
     try {
       const token = await user.getIdToken(true);
       const response = await fetch(`/api/admin/${action}`, {
@@ -94,9 +96,11 @@ export default function ReviewPage() {
         if (action === 'approve') {
           setApprovedItems((prev) => new Set(prev).add(registrantId));
           if (resData.whatsappSent) {
-            setNotification({ message: '✓ تم قبول الطلب وإرسال التذكرة تلقائياً عبر الواتساب!', type: 'success' });
-          } else {
-            setNotification({ message: '✓ تم قبول الطلب وتوليد التذكرة بنجاح!', type: 'info' });
+            setNotification({ message: '✓ تم قبول الطلب وإرسال التذكرة تلقائياً عبر البوت!', type: 'success' });
+          } else if (targetItem) {
+            // Auto-launch WhatsApp Web / App with pre-filled ticket message
+            window.open(getWhatsAppUrl(targetItem), '_blank');
+            setNotification({ message: '✓ تم فتح الواتساب لإرسال التذكرة!', type: 'info' });
           }
           setTimeout(() => setNotification(null), 4000);
         } else {
