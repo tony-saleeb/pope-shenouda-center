@@ -1,5 +1,4 @@
-'use client';
-
+import Image from 'next/image';
 import Link from 'next/link';
 import Header from '@/components/Header';
 
@@ -24,10 +23,13 @@ export default function HomePage() {
           boxShadow: '0 8px 32px rgba(251, 186, 51, 0.35)',
           padding: '0.625rem',
         }}>
-          <img
+          <Image
             src="/icon.png"
             alt="مؤتمر القرن العاشر"
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            width={104}
+            height={104}
+            style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+            priority
           />
         </div>
 

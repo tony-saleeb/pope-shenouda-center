@@ -1,22 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
 import { isValidEgyptianPhone, normalizePhone, VALIDATION_MESSAGES } from '@/lib/validation';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 
 export default function TicketLookupPage() {
-  const router = useRouter();
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
 
     const normalized = normalizePhone(phone);
 
@@ -33,18 +31,22 @@ export default function TicketLookupPage() {
     setLoading(true);
 
     try {
-      // Lookup registrantId from phoneIndex
-      const phoneIndexRef = doc(db, 'phoneIndex', normalized);
-      const phoneIndexSnap = await getDoc(phoneIndexRef);
+      const res = await fetch('/api/public/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: normalized }),
+      });
 
-      if (phoneIndexSnap.exists()) {
-        const registrantId = phoneIndexSnap.data().registrantId;
-        // Redirect to status page which will automatically display ticket if approved
-        router.push(`/status/${registrantId}`);
-      } else {
-        setError('عذرًا، لم يتم العثور على أي تسجيل بهذا الرقم. تأكد من كتابة الرقم بشكل صحيح.');
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.messageAr || VALIDATION_MESSAGES.genericError);
         setLoading(false);
+        return;
       }
+
+      setSuccessMessage(data.messageAr || 'لو الرقم مسجّل عندنا، هيوصلك رابط التذكرة على الواتساب خلال دقائق.');
+      setLoading(false);
     } catch (err) {
       console.error('Lookup error:', err);
       setError('حدث خطأ أثناء البحث، يرجى المحاولة مرة أخرى.');
@@ -79,48 +81,66 @@ export default function TicketLookupPage() {
               التحقق من التذكرة
             </h1>
             <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.45)' }}>
-              أدخل رقم الموبايل الذي قمت بالتسجيل به لعرض حالة طلبك وتذكرتك
+              أدخل رقم الموبايل الذي قمت بالتسجيل به لإرسال رابط التذكرة إلى الواتساب
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleLookup} style={{ display: 'grid', gap: '1rem' }}>
-            <div>
-              <label className="form-label" htmlFor="phone">رقم الموبايل</label>
-              <input
-                id="phone"
-                type="tel"
-                className={`form-input ${error ? 'form-input-error' : ''}`}
-                placeholder="01XXXXXXXXX"
-                value={phone}
-                onChange={(e) => {
-                  setPhone(e.target.value);
-                  setError(null);
-                }}
-                dir="ltr"
-                style={{ textAlign: 'left' }}
-                inputMode="tel"
-                autoFocus
-              />
-              {error && <p className="form-error">{error}</p>}
+          {/* Inline Success Message */}
+          {successMessage ? (
+            <div style={{
+              padding: '1.25rem',
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: '0.75rem',
+              color: 'var(--color-success-500)',
+              fontSize: '0.9375rem',
+              lineHeight: 1.6,
+              textAlign: 'center',
+              marginBottom: '1.5rem',
+            }}>
+              <p style={{ fontWeight: 700, marginBottom: '0.25rem' }}>تم استلام طلبك ✓</p>
+              <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.8)' }}>{successMessage}</p>
             </div>
+          ) : (
+            /* Form */
+            <form onSubmit={handleLookup} style={{ display: 'grid', gap: '1rem' }}>
+              <div>
+                <label className="form-label" htmlFor="phone">رقم الموبايل</label>
+                <input
+                  id="phone"
+                  type="tel"
+                  className={`form-input ${error ? 'form-input-error' : ''}`}
+                  placeholder="01XXXXXXXXX"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                    setError(null);
+                  }}
+                  dir="ltr"
+                  style={{ textAlign: 'left' }}
+                  inputMode="tel"
+                  autoFocus
+                />
+                {error && <p className="form-error">{error}</p>}
+              </div>
 
-            <button
-              type="submit"
-              className="btn btn-primary btn-full btn-lg"
-              disabled={loading || !phone}
-              style={{ marginTop: '0.5rem' }}
-            >
-              {loading ? (
-                <>
-                  <span className="spinner" />
-                  <span>جاري البحث...</span>
-                </>
-              ) : (
-                <span>تحقق الآن</span>
-              )}
-            </button>
-          </form>
+              <button
+                type="submit"
+                className="btn btn-primary btn-full btn-lg"
+                disabled={loading || !phone}
+                style={{ marginTop: '0.5rem' }}
+              >
+                {loading ? (
+                  <>
+                    <span className="spinner" />
+                    <span>جاري إرسال الرابط...</span>
+                  </>
+                ) : (
+                  <span>إرسال الرابط للواتساب</span>
+                )}
+              </button>
+            </form>
+          )}
 
           {/* Back button */}
           <div style={{ marginTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '1.5rem' }}>

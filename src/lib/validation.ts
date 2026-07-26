@@ -51,3 +51,26 @@ export function formatPhoneDisplay(phone: string): string {
   }
   return cleaned;
 }
+
+/**
+ * Safely validate an image URL or data URI.
+ * Accepts ONLY base64 image data URIs (jpeg/png/webp) or Firebase Storage URLs.
+ * Prevents XSS via javascript: or malicious data: schemes in anchor href or img src attributes.
+ */
+export function safeImageSrc(url: unknown): string | null {
+  if (typeof url !== 'string' || !url) return null;
+  const trimmed = url.trim();
+
+  // Allow base64 data URIs for jpeg, png, or webp images
+  const base64Pattern = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+  if (base64Pattern.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Allow HTTPS Firebase Storage URLs
+  if (/^https:\/\/firebasestorage\.googleapis\.com\//.test(trimmed)) {
+    return trimmed;
+  }
+
+  return null;
+}

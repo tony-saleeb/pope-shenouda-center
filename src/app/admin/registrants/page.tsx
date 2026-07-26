@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth/context';
 import type { Registrant, RegistrantStatus } from '@/lib/types';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
+import { safeImageSrc } from '@/lib/validation';
 
 interface RegistrantItem {
   id: string;
@@ -378,42 +379,46 @@ export default function RegistrantsPage() {
                       </td>
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
-                          {item.data.paymentScreenshotUrl && (
-                            <button
-                              onClick={() => setSelectedImageModal({ url: item.data.paymentScreenshotUrl!, name: item.data.fullName })}
-                              title="معاينة إيصال الدفع"
-                              style={{
-                                background: 'rgba(251, 186, 51, 0.12)',
-                                border: '1px solid rgba(251, 186, 51, 0.3)',
-                                borderRadius: '0.5rem',
-                                padding: '0.5rem',
-                                cursor: 'pointer',
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                transition: 'all 0.2s ease',
-                                color: '#fbba33',
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = 'rgba(251, 186, 51, 0.25)';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = 'rgba(251, 186, 51, 0.12)';
-                              }}
-                            >
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <rect width="18" height="18" x="3" y="3" rx="2" />
-                                <circle cx="9" cy="9" r="2" />
-                                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-                              </svg>
-                            </button>
-                          )}
+                          {item.data.paymentScreenshotUrl && (() => {
+                            const validUrl = safeImageSrc(item.data.paymentScreenshotUrl);
+                            return validUrl ? (
+                              <button
+                                onClick={() => setSelectedImageModal({ url: validUrl, name: item.data.fullName })}
+                                title="معاينة إيصال الدفع"
+                                style={{
+                                  background: 'rgba(251, 186, 51, 0.12)',
+                                  border: '1px solid rgba(251, 186, 51, 0.3)',
+                                  borderRadius: '0.5rem',
+                                  padding: '0.5rem',
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  transition: 'all 0.2s ease',
+                                  color: '#fbba33',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.background = 'rgba(251, 186, 51, 0.25)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.background = 'rgba(251, 186, 51, 0.12)';
+                                }}
+                              >
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect width="18" height="18" x="3" y="3" rx="2" />
+                                  <circle cx="9" cy="9" r="2" />
+                                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                                </svg>
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>صورة غير صالحة</span>
+                            );
+                          })()}
 
                           {(item.data.status === 'approved' || item.data.status === 'auto_approved') && (
                             <a
                               href={getWhatsAppUrl(item)}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                              target="_blank" rel="noopener noreferrer"
                               title="إرسال التذكرة عبر واتساب"
                               style={{
                                 background: 'rgba(16, 185, 129, 0.12)',

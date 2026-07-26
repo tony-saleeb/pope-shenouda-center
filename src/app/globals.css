@@ -77,7 +77,7 @@ html {
 
 body {
   min-height: 100dvh;
-  background-image: linear-gradient(rgba(19, 12, 5, 0.38), rgba(19, 12, 5, 0.38)), url('/bg.png');
+  background-image: linear-gradient(rgba(19, 12, 5, 0.38), rgba(19, 12, 5, 0.38)), url('/bg.webp');
   background-size: cover;
   background-position: center;
   background-attachment: fixed;

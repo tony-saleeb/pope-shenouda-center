@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useState, use } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
 import type { Registrant, Ticket } from '@/lib/types';
 import Header from '@/components/Header';
 import Link from 'next/link';
@@ -32,6 +30,16 @@ function drawRoundedRectPath(
   ctx.closePath();
 }
 
+interface PublicTicketResponse {
+  fullName: string;
+  church: string;
+  qrImageUrl: string;
+  used: boolean;
+  usedAt: string | null;
+  messageAr?: string;
+  error?: string;
+}
+
 export default function TicketPage({ params }: { params: Promise<{ registrantId: string }> }) {
   const { registrantId } = use(params);
   const [registrant, setRegistrant] = useState<Registrant | null>(null);
@@ -43,31 +51,33 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
   useEffect(() => {
     async function fetchData() {
       try {
-        // Fetch registrant
-        const regSnap = await getDoc(doc(db, 'registrants', registrantId));
-        if (!regSnap.exists()) {
-          setError('لم يتم العثور على التسجيل');
-          setLoading(false);
-          return;
-        }
-        const regData = regSnap.data() as Registrant;
-        setRegistrant(regData);
+        const res = await fetch(`/api/public/ticket/${registrantId}`, {
+          cache: 'no-store',
+        });
+        const data: PublicTicketResponse = await res.json();
 
-        // Check if approved
-        if (regData.status !== 'approved' && regData.status !== 'auto_approved') {
-          setError('التسجيل غير مقبول بعد — التذكرة تظهر فقط للطلبات المقبولة');
+        if (!res.ok) {
+          setError(data.messageAr || 'حدث خطأ في تحميل التذكرة');
           setLoading(false);
           return;
         }
 
-        // Fetch ticket
-        const ticketSnap = await getDoc(doc(db, 'tickets', registrantId));
+        setRegistrant({
+          id: registrantId,
+          fullName: data.fullName,
+          church: data.church,
+          status: 'approved',
+          phoneNumber: '',
+        } as unknown as Registrant);
 
-        if (ticketSnap.exists()) {
-          setTicket(ticketSnap.data() as Ticket);
-        } else {
-          setError('التذكرة لم تُصدر بعد');
-        }
+        setTicket({
+          id: registrantId,
+          registrantId,
+          qrToken: '',
+          qrImageUrl: data.qrImageUrl,
+          used: data.used,
+          usedAt: data.usedAt ? (new Date(data.usedAt) as any) : null,
+        } as unknown as Ticket);
 
         setLoading(false);
       } catch (err) {
@@ -192,14 +202,16 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
       ctx.font = '600 23px system-ui, -apple-system, sans-serif';
       ctx.fillText(registrant.church, width / 2, 702);
 
-      // Phone Number
-      ctx.fillStyle = '#fbba33';
-      ctx.font = '700 15px system-ui, -apple-system, sans-serif';
-      ctx.fillText('رقم الموبايل', width / 2, 752);
+      // Phone Number (if present)
+      if (registrant.phoneNumber) {
+        ctx.fillStyle = '#fbba33';
+        ctx.font = '700 15px system-ui, -apple-system, sans-serif';
+        ctx.fillText('رقم الموبايل', width / 2, 752);
 
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
-      ctx.fillText(registrant.phoneNumber, width / 2, 788);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 22px system-ui, -apple-system, sans-serif';
+        ctx.fillText(registrant.phoneNumber, width / 2, 788);
+      }
 
       // 7. Footer Note
       ctx.fillStyle = 'rgba(247, 240, 228, 0.55)';
@@ -342,12 +354,14 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
                 <p style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(247, 240, 228, 0.9)' }}>{registrant.church}</p>
               </div>
 
-              <div>
-                <p style={{ fontSize: '0.75rem', color: '#fbba33', fontWeight: 700, marginBottom: '0.125rem' }}>رقم الموبايل</p>
-                <p style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(247, 240, 228, 0.9)', fontFamily: 'monospace' }} dir="ltr">
-                  {registrant.phoneNumber}
-                </p>
-              </div>
+              {registrant.phoneNumber && (
+                <div>
+                  <p style={{ fontSize: '0.75rem', color: '#fbba33', fontWeight: 700, marginBottom: '0.125rem' }}>رقم الموبايل</p>
+                  <p style={{ fontSize: '1rem', fontWeight: 600, color: 'rgba(247, 240, 228, 0.9)', fontFamily: 'monospace' }} dir="ltr">
+                    {registrant.phoneNumber}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Download Button */}

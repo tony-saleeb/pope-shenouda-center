@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth/context';
 import type { Registrant } from '@/lib/types';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
+import { safeImageSrc } from '@/lib/validation';
 
 interface ReviewItem {
   id: string;
@@ -421,44 +422,65 @@ export default function ReviewPage() {
                   </div>
 
                   {/* Screenshot Preview */}
-                  {item.data.paymentScreenshotUrl && (
-                    <div
-                      onClick={() => setSelectedImageModal({ url: item.data.paymentScreenshotUrl!, name: item.data.fullName })}
-                      style={{
+                  {item.data.paymentScreenshotUrl && (() => {
+                    const validScreenshot = safeImageSrc(item.data.paymentScreenshotUrl);
+                    return validScreenshot ? (
+                      <div
+                        onClick={() => setSelectedImageModal({ url: validScreenshot, name: item.data.fullName })}
+                        style={{
+                          width: '6rem',
+                          height: '6rem',
+                          borderRadius: '0.75rem',
+                          overflow: 'hidden',
+                          flexShrink: 0,
+                          border: '1.5px solid rgba(242, 158, 19, 0.3)',
+                          boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+                          cursor: 'pointer',
+                          position: 'relative',
+                        }}
+                        title="اضغط لمشاهدة الإيصال بوضوح"
+                      >
+                        <img
+                          src={validScreenshot}
+                          alt="إيصال الدفع"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                        <div style={{
+                          position: 'absolute',
+                          inset: 0,
+                          background: 'rgba(0,0,0,0.25)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            <line x1="11" y1="8" x2="11" y2="14" />
+                            <line x1="8" y1="11" x2="14" y2="11" />
+                          </svg>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
                         width: '6rem',
                         height: '6rem',
                         borderRadius: '0.75rem',
-                        overflow: 'hidden',
-                        flexShrink: 0,
-                        border: '1.5px solid rgba(242, 158, 19, 0.3)',
-                        boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
-                        cursor: 'pointer',
-                        position: 'relative',
-                      }}
-                      title="اضغط لمشاهدة الإيصال بوضوح"
-                    >
-                      <img
-                        src={item.data.paymentScreenshotUrl}
-                        alt="إيصال الدفع"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
-                      <div style={{
-                        position: 'absolute',
-                        inset: 0,
-                        background: 'rgba(0,0,0,0.25)',
+                        background: 'rgba(239, 68, 68, 0.1)',
+                        border: '1px solid rgba(239, 68, 68, 0.3)',
+                        color: '#ef4444',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        textAlign: 'center',
+                        padding: '0.25rem',
                       }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="11" cy="11" r="8" />
-                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                          <line x1="11" y1="8" x2="11" y2="14" />
-                          <line x1="8" y1="11" x2="14" y2="11" />
-                        </svg>
+                        صورة غير صالحة
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Action Buttons or Permanent WhatsApp Share */}
@@ -468,8 +490,7 @@ export default function ReviewPage() {
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
                       <a
                         href={getWhatsAppUrl(item)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target="_blank" rel="noopener noreferrer"
                         style={{ flex: 1, textDecoration: 'none', display: 'block' }}
                       >
                         <button className="btn btn-success btn-full" style={{

@@ -436,10 +436,8 @@ export default function ScanPage() {
                 <div style={{ marginBottom: '1.5rem' }}>
                   <input
                     type="password"
-                    pattern="[0-9]*"
-                    inputMode="numeric"
                     className="form-input"
-                    placeholder="أدخل كود الماسح (مثال: 102030)"
+                    placeholder="أدخل كود الماسح"
                     value={passcode}
                     onChange={(e) => setPasscode(e.target.value)}
                     style={{

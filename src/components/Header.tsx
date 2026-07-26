@@ -1,5 +1,4 @@
 import Image from 'next/image';
-import Link from 'next/link';
 
 export default function Header() {
   return (
@@ -21,13 +20,14 @@ export default function Header() {
         {/* Logo 1: Pope Shenouda Center (Left) */}
         <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
           <Image
-            src="/logo-shenouda.png"
+            src="/logo-shenouda.webp"
             alt="مرکز البابا شنودة للتاريخ الكنسي"
             width={70}
             height={70}
             style={{
               objectFit: 'contain',
               maxWidth: '100%',
+              width: 'auto',
               height: 'auto',
               maxHeight: '4.5rem',
               filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
@@ -39,13 +39,14 @@ export default function Header() {
         {/* Logo 2: Aristotle Academy (Center-Left) */}
         <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
           <Image
-            src="/logo-aristotle.png"
+            src="/logo-aristotle.webp"
             alt="أكاديمية أرسطو"
             width={90}
             height={60}
             style={{
               objectFit: 'contain',
               maxWidth: '100%',
+              width: 'auto',
               height: 'auto',
               maxHeight: '3.75rem',
               filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
@@ -57,13 +58,14 @@ export default function Header() {
         {/* Logo 3: Coptic Institute (Center-Right) */}
         <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
           <Image
-            src="/logo-coptic.png"
+            src="/logo-coptic.webp"
             alt="المعهد العالي للدراسات القبطية"
             width={75}
             height={75}
             style={{
               objectFit: 'contain',
               maxWidth: '100%',
+              width: 'auto',
               height: 'auto',
               maxHeight: '4.5rem',
               filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))',
@@ -75,13 +77,14 @@ export default function Header() {
         {/* Logo 4: Cultural Center (Right) */}
         <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
           <Image
-            src="/logo-cultural.png"
+            src="/logo-cultural.webp"
             alt="المركز الثقافي القبطي الأرثوذكسي"
             width={75}
             height={75}
             style={{
               objectFit: 'contain',
               maxWidth: '100%',
+              width: 'auto',
               height: 'auto',
               maxHeight: '4.5rem',
               filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.3))',

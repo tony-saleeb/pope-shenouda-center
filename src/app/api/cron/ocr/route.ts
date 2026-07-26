@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { processRegistrantOcr } from '@/lib/ocr/processor';
+import { getCronSecret } from '@/lib/env';
+
+/** Extend max execution duration for Vercel functions (12s throttles + downloads + vision API). */
+export const maxDuration = 60;
 
 // Limit the batch size to respect free-tier rate limits
 const BATCH_SIZE = 5;
@@ -10,17 +15,32 @@ const THROTTLE_DELAY = 3000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function GET(request: NextRequest) {
-  // Simple protection check (using a token in the headers or query param)
+/**
+ * Constant-time bearer token authorization.
+ * Note: Vercel automatically sends `Authorization: Bearer $CRON_SECRET` on scheduled
+ * cron jobs when CRON_SECRET is set as an environment variable in project settings.
+ */
+function isAuthorizedCronRequest(request: NextRequest): boolean {
+  const cronSecret = getCronSecret();
   const authHeader = request.headers.get('Authorization');
-  const cronSecret = process.env.CRON_SECRET;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return false;
+  }
 
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    const url = new URL(request.url);
-    const key = url.searchParams.get('key');
-    if (key !== cronSecret) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+  const providedToken = authHeader.substring(7).trim();
+  const a = Buffer.from(providedToken, 'utf8');
+  const b = Buffer.from(cronSecret, 'utf8');
+
+  if (a.length !== b.length) {
+    return false;
+  }
+
+  return timingSafeEqual(a, b);
+}
+
+export async function GET(request: NextRequest) {
+  if (!isAuthorizedCronRequest(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {

@@ -1,11 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { verifyTicket } from '@/lib/qr/hmac';
-import { verifyAuthToken } from '@/lib/auth/guards';
+import { verifyAuthToken, PRIMARY_ADMIN_EMAIL } from '@/lib/auth/guards';
 import { getValidPasscode } from '@/app/api/scan/verify-passcode/route';
 import { FieldValue } from 'firebase-admin/firestore';
+import { getLimiter, limitByIp } from '@/lib/ratelimit';
+
+/** Max allowed qrToken length — reject unbounded input before it reaches HMAC. */
+const MAX_QR_TOKEN_LENGTH = 512;
+
+/** Rate limiter for scans: 60 requests per minute per IP. */
+const scanLimiter = getLimiter('scan', 60, '1 m');
+
+/**
+ * Constant-time passcode comparison.
+ * Length-guard first (timingSafeEqual throws on mismatched lengths).
+ */
+function passcodeMatches(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided.trim(), 'utf8');
+  const b = Buffer.from(expected.trim(), 'utf8');
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 export async function POST(request: NextRequest) {
+  // Rate-limit scan attempts: 60 req/min per IP
+  const limitedResponse = await limitByIp(request, scanLimiter);
+  if (limitedResponse) {
+    return limitedResponse;
+  }
+
   // Check authorization via Usher Passcode header OR Firebase ID Token
   const passcodeHeader = request.headers.get('x-usher-passcode');
   let authorized = false;
@@ -13,9 +38,10 @@ export async function POST(request: NextRequest) {
 
   if (passcodeHeader) {
     const validPasscode = await getValidPasscode();
-    if (passcodeHeader.trim() === validPasscode.trim()) {
+    if (passcodeMatches(passcodeHeader, validPasscode)) {
       authorized = true;
       usherId = 'usher-passcode';
+      console.warn('[scan] Passcode-authenticated scan — no individual usher attribution. (See P0-5)');
     }
   }
 
@@ -23,7 +49,7 @@ export async function POST(request: NextRequest) {
     const decodedToken = await verifyAuthToken(request);
     if (decodedToken) {
       const userEmail = decodedToken.email?.toLowerCase();
-      const isPrimaryAdmin = userEmail === 'tonysaleeb23@gmail.com';
+      const isPrimaryAdmin = userEmail === PRIMARY_ADMIN_EMAIL.toLowerCase();
       const userRole = decodedToken.role || (isPrimaryAdmin ? 'admin' : undefined);
       if (userRole === 'admin' || userRole === 'usher') {
         authorized = true;
@@ -57,10 +83,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 1: Verify HMAC signature or extract ticketId/URL
-    const { valid, ticketId } = verifyTicket(qrToken);
+    // Input length guard — reject unbounded strings before HMAC
+    if (qrToken.length > MAX_QR_TOKEN_LENGTH) {
+      return NextResponse.json(
+        {
+          type: 'tampered',
+          message: 'QR code signature is invalid',
+          messageAr: 'رمز QR غير صالح أو منتهي الصلاحية',
+        },
+        { status: 400 }
+      );
+    }
 
-    if (!valid || !ticketId) {
+    // Step 1: Verify HMAC signature and extract ticketId
+    const { valid, ticketId, isSigned } = verifyTicket(qrToken);
+
+    if (!valid || !ticketId || !isSigned) {
       return NextResponse.json(
         {
           type: 'tampered',

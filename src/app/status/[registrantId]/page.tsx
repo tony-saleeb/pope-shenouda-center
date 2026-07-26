@@ -1,8 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
 import type { Registrant, RegistrantStatus } from '@/lib/types';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -82,6 +80,15 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
   },
 };
 
+interface PublicStatusResponse {
+  status: RegistrantStatus;
+  fullName: string;
+  church: string;
+  createdAt: string | null;
+  messageAr?: string;
+  error?: string;
+}
+
 export default function StatusPage() {
   const params = useParams();
   const router = useRouter();
@@ -102,25 +109,49 @@ export default function StatusPage() {
   useEffect(() => {
     if (!registrantId) return;
 
-    const unsubscribe = onSnapshot(
-      doc(db, 'registrants', registrantId),
-      (snapshot) => {
-        if (!snapshot.exists()) {
-          setError('لم يتم العثور على هذا التسجيل');
+    let isMounted = true;
+
+    async function fetchStatus() {
+      try {
+        const res = await fetch(`/api/public/status/${registrantId}`, {
+          cache: 'no-store',
+        });
+        const data: PublicStatusResponse = await res.json();
+
+        if (!isMounted) return;
+
+        if (!res.ok) {
+          setError(data.messageAr || 'لم يتم العثور على هذا التسجيل');
           setLoading(false);
           return;
         }
-        setRegistrant(snapshot.data() as Registrant);
+
+        setRegistrant({
+          id: registrantId,
+          status: data.status,
+          fullName: data.fullName,
+          church: data.church,
+          createdAt: data.createdAt ? new Date(data.createdAt) : ({} as any),
+        } as unknown as Registrant);
+        setError(null);
         setLoading(false);
-      },
-      (err) => {
-        console.error('Status listener error:', err);
+      } catch (err) {
+        if (!isMounted) return;
+        console.error('Status fetch error:', err);
         setError('حدث خطأ في تحميل حالة التسجيل');
         setLoading(false);
       }
-    );
+    }
 
-    return () => unsubscribe();
+    fetchStatus();
+
+    // Poll every 15 seconds for status updates
+    const intervalId = setInterval(fetchStatus, 15000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, [registrantId]);
 
   // Auto-redirect to ticket page when approved
@@ -224,10 +255,12 @@ export default function StatusPage() {
               <span style={{ color: 'rgba(255,255,255,0.45)' }}>الكنيسة:</span>
               <span style={{ fontWeight: 600 }}>{registrant.church}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-              <span style={{ color: 'rgba(255,255,255,0.45)' }}>رقم الموبايل:</span>
-              <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{registrant.phoneNumber}</span>
-            </div>
+            {registrant.phoneNumber && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
+                <span style={{ color: 'rgba(255,255,255,0.45)' }}>رقم الموبايل:</span>
+                <span style={{ fontWeight: 600, fontFamily: 'monospace' }}>{registrant.phoneNumber}</span>
+              </div>
+            )}
           </div>
 
           {/* Action Links */}
