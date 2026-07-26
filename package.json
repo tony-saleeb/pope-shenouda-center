@@ -8,7 +8,9 @@
     "start": "next start",
     "whatsapp-bot": "node scripts/whatsapp-bot.js",
     "whatsapp-reset": "node scripts/reset-whatsapp-session.js",
-    "lint": "eslint"
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "vitest run"
   },
   "dependencies": {
     "express": "^5.2.1",
@@ -36,7 +38,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "overrides": {
     "jose": "5.10.0"

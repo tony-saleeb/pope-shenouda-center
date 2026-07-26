@@ -1,21 +1,26 @@
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
+import { getTicketSecret } from '@/lib/env';
 
-const TICKET_SECRET = process.env.TICKET_SECRET || 'dev-secret-change-in-production';
+/** Signature length in hex characters (64 bits). */
+const SIG_LEN = 16;
 
 /**
- * Sign a ticket ID using HMAC-SHA256 with an ultra-short 8-char signature.
- * Keeps payload minimal so QR code generates with giant, easily-scanned blocks (Version 1/2 QR).
+ * Sign a ticket ID using HMAC-SHA256, truncated to SIG_LEN hex chars.
+ * Keeps payload minimal so QR code generates with easily-scanned blocks.
  */
 export function signTicket(ticketId: string): string {
-  const shortSignature = createHmac('sha256', TICKET_SECRET)
+  const shortSignature = createHmac('sha256', getTicketSecret())
     .update(ticketId)
     .digest('hex')
-    .substring(0, 8);
+    .substring(0, SIG_LEN);
   return `${ticketId}.${shortSignature}`;
 }
 
 /**
  * Verify a QR token string or URL and extract the ticket ID.
+ *
+ * Only signed tokens are accepted — unsigned / raw IDs are rejected.
+ * Comparison uses timingSafeEqual to prevent timing side-channels.
  */
 export function verifyTicket(input: string): { valid: boolean; ticketId: string | null; isSigned: boolean } {
   let cleaned = input.trim();
@@ -36,25 +41,32 @@ export function verifyTicket(input: string): { valid: boolean; ticketId: string 
     }
   }
 
-  // Check if cleaned is in signed format: ticketId.signature
-  const parts = cleaned.split('.');
-  if (parts.length === 2) {
-    const [ticketId, providedSignature] = parts;
-    const expectedSignature = createHmac('sha256', TICKET_SECRET)
-      .update(ticketId)
-      .digest('hex')
-      .substring(0, providedSignature.length);
-
-    if (providedSignature.length > 0 && providedSignature === expectedSignature) {
-      return { valid: true, ticketId, isSigned: true };
-    }
+  // Require signed format: ticketId.signature
+  const dotIndex = cleaned.lastIndexOf('.');
+  if (dotIndex === -1) {
+    return { valid: false, ticketId: null, isSigned: false };
   }
 
-  // Fallback: If it's a raw UUID / ID (or URL containing ID)
-  const rawIdMatch = cleaned.match(/^[a-zA-Z0-9_-]+$/);
-  if (rawIdMatch) {
-    return { valid: true, ticketId: cleaned, isSigned: false };
+  const ticketId = cleaned.substring(0, dotIndex);
+  const providedSignature = cleaned.substring(dotIndex + 1);
+
+  // Reject unless the provided signature is exactly SIG_LEN hex chars
+  if (providedSignature.length !== SIG_LEN) {
+    return { valid: false, ticketId: null, isSigned: false };
   }
 
-  return { valid: false, ticketId: null, isSigned: false };
+  const expectedSignature = createHmac('sha256', getTicketSecret())
+    .update(ticketId)
+    .digest('hex')
+    .substring(0, SIG_LEN);
+
+  // Constant-time comparison on equal-length buffers
+  const a = Buffer.from(providedSignature, 'utf8');
+  const b = Buffer.from(expectedSignature, 'utf8');
+
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
+    return { valid: false, ticketId: null, isSigned: false };
+  }
+
+  return { valid: true, ticketId, isSigned: true };
 }
