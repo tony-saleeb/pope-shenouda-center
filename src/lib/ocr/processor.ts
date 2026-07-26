@@ -1,4 +1,4 @@
-import { getAdminDb } from '@/lib/firebase/admin';
+wimport { getAdminDb } from '@/lib/firebase/admin';
 import { extractReceiptData } from './gemini';
 import { generateQrCodeDataUrl } from '@/lib/qr/generator';
 import { FieldValue, Firestore } from 'firebase-admin/firestore';
