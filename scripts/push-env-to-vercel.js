@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Push all .env variables to Vercel production environment.
+ * Push all .env variables to Vercel production environment cleanly trimmed.
  * Usage: node scripts/push-env-to-vercel.js
  */
 const { execSync } = require('child_process');
@@ -17,39 +17,38 @@ let inMultiLine = false;
 
 for (const line of content.split('\n')) {
   const trimmed = line.trim();
-  
+
   // Skip comments and empty lines
   if (!inMultiLine && (trimmed.startsWith('#') || trimmed === '')) continue;
-  
+
   if (!inMultiLine) {
     const eqIdx = trimmed.indexOf('=');
     if (eqIdx === -1) continue;
-    
-    currentKey = trimmed.substring(0, eqIdx);
-    let val = trimmed.substring(eqIdx + 1);
-    
+
+    currentKey = trimmed.substring(0, eqIdx).trim();
+    let val = trimmed.substring(eqIdx + 1).trim();
+
     // Check if value starts with a quote and doesn't end with one (multi-line)
     if (val.startsWith('"') && !val.endsWith('"')) {
       inMultiLine = true;
       currentValue = val;
       continue;
     }
-    
+
     // Remove surrounding quotes if present
     if (val.startsWith('"') && val.endsWith('"')) {
       val = val.slice(1, -1);
     }
-    
-    envVars[currentKey] = val;
+
+    envVars[currentKey] = val.trim();
   } else {
     currentValue += '\n' + line;
     if (line.trimEnd().endsWith('"')) {
       inMultiLine = false;
-      // Remove surrounding quotes
       let val = currentValue;
       if (val.startsWith('"')) val = val.slice(1);
       if (val.endsWith('"')) val = val.slice(0, -1);
-      envVars[currentKey] = val;
+      envVars[currentKey] = val.trim();
       currentKey = null;
       currentValue = '';
     }
@@ -69,24 +68,25 @@ let successCount = 0;
 let errorCount = 0;
 
 for (const [key, value] of Object.entries(envVars)) {
+  const cleanVal = value.trim();
   try {
-    // Remove existing env var first (ignore errors if it doesn't exist)
+    // Remove existing env var first
     try {
-      execSync(`npx vercel env rm ${key} production --yes 2>nul`, { 
+      execSync(`npx vercel env rm ${key} production --yes`, {
         cwd: path.join(__dirname, '..'),
         stdio: 'pipe',
       });
     } catch {
-      // Ignore - variable may not exist yet
+      // Ignore
     }
-    
-    // Add the env var using echo pipe
-    execSync(`echo ${JSON.stringify(value)} | npx vercel env add ${key} production`, {
+
+    // Add env var using input stream with zero newlines
+    execSync(`npx vercel env add ${key} production`, {
       cwd: path.join(__dirname, '..'),
-      stdio: 'pipe',
-      input: value,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      input: cleanVal,
     });
-    
+
     console.log(`  ✓ ${key}`);
     successCount++;
   } catch (err) {
