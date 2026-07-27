@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { isValidEgyptianPhone, normalizePhone, VALIDATION_MESSAGES } from '@/lib/validation';
 import Link from 'next/link';
 import Header from '@/components/Header';
 
 export default function TicketLookupPage() {
+  const router = useRouter();
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -55,9 +57,11 @@ export default function TicketLookupPage() {
       }
 
       if (data.registrantId) {
-        setFoundRegistrantId(data.registrantId);
+        router.push(`/status/${data.registrantId}`);
+        return;
       }
-      setSuccessMessage(data.messageAr || 'تم العثور على حسابك بنجاح! تم إرسال رابط التذكرة إلى الواتساب الخاص بك.');
+
+      setSuccessMessage(data.messageAr || 'تم العثور على حسابك بنجاح!');
       setLoading(false);
     } catch (err) {
       console.error('Lookup error:', err);
