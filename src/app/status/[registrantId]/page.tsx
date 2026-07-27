@@ -16,21 +16,20 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
   pulse: boolean;
 }> = {
   pending_verification: {
-    titleAr: 'جاري التحقق',
-    descAr: 'تم استلام طلبك بنجاح وجاري التحقق من إيصال الدفع...',
+    titleAr: 'تم استلام طلبك بنجاح! 📱',
+    descAr: 'تم استلام بياناتك وإيصال الدفع بنجاح — سيتم مراجعة الإيصال وإرسال التذكرة الإلكترونية (كود QR) مباشرة إلى حساب الواتساب الخاص بك فور التأكيد.',
     renderIcon: () => (
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" />
-        <polyline points="12 6 12 12 16 14" />
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
       </svg>
     ),
-    color: 'var(--color-accent-400)',
-    bg: 'rgba(245, 158, 11, 0.1)',
+    color: '#34d399',
+    bg: 'rgba(52, 211, 153, 0.12)',
     pulse: true,
   },
   auto_approved: {
-    titleAr: 'تمت الموافقة!',
-    descAr: 'تم التحقق من الدفع بنجاح — تذكرتك جاهزة',
+    titleAr: 'تمت الموافقة وتفعيل التذكرة! 🎉',
+    descAr: 'تم التحقق من الدفع بنجاح — تذكرتك جاهزة وسيتم إرسالها أيضاً عبر الواتساب',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
@@ -41,21 +40,20 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
     pulse: false,
   },
   manual_review: {
-    titleAr: 'قيد المراجعة',
-    descAr: 'طلبك قيد المراجعة وسيصلك التذكرة قريبًا. إذا تأخرت المراجعة تواصل معنا.',
+    titleAr: 'تم استلام طلبك بنجاح! 📱',
+    descAr: 'طلبك قيد المراجعة حالياً وسوف تصلك التذكرة الإلكترونية مباشرة عبر الواتساب على رقم الموبايل المسجل فور تأكيد الإيصال.',
     renderIcon: () => (
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-        <circle cx="12" cy="12" r="3" />
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
       </svg>
     ),
-    color: 'var(--color-primary-400)',
-    bg: 'rgba(79, 82, 247, 0.1)',
+    color: '#34d399',
+    bg: 'rgba(52, 211, 153, 0.12)',
     pulse: true,
   },
   approved: {
-    titleAr: 'تمت الموافقة!',
-    descAr: 'تم التحقق من الدفع بنجاح — تذكرتك جاهزة',
+    titleAr: 'تمت الموافقة وتفعيل التذكرة! 🎉',
+    descAr: 'تم التحقق من الدفع بنجاح — تذكرتك جاهزة وسيتم إرسالها أيضاً عبر الواتساب',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
@@ -66,8 +64,8 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
     pulse: false,
   },
   rejected: {
-    titleAr: 'تم الرفض',
-    descAr: 'عذرًا، لم يتم التحقق من الدفع. تواصل معنا للمساعدة.',
+    titleAr: 'لم يتم التحقق من الإيصال',
+    descAr: 'عذراً، تعذّر التحقق من صحة إيصال التحويل. يرجى التواصل مع الدعم الفني للمساعدة.',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="6" x2="6" y2="18" />
@@ -236,6 +234,28 @@ export default function StatusPage() {
           <p style={{ fontSize: '0.9375rem', color: 'rgba(255,255,255,0.6)', marginBottom: '2rem', lineHeight: 1.6 }}>
             {statusInfo.descAr}
           </p>
+
+          {/* WhatsApp Ticket Delivery Banner */}
+          {!isApproved && registrant.status !== 'rejected' && (
+            <div style={{
+              background: 'rgba(37, 211, 102, 0.08)',
+              border: '1px solid rgba(37, 211, 102, 0.25)',
+              borderRadius: '1rem',
+              padding: '1.25rem',
+              marginBottom: '1.5rem',
+              textAlign: 'center',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#25D366', fontWeight: 800, fontSize: '0.9375rem', marginBottom: '0.35rem' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984 0 1.758.459 3.474 1.33 4.988l-1.413 5.164 5.283-1.386c1.464.798 3.116 1.218 4.79 1.218h.004c5.505 0 9.987-4.479 9.988-9.986 0-2.668-1.038-5.176-2.925-7.062s-4.395-2.922-7.067-2.922zm0 1.667c4.586 0 8.318 3.731 8.319 8.317 0 2.227-.867 4.321-2.443 5.897s-3.67 2.443-5.895 2.443h-.003c-1.472 0-2.915-.395-4.175-1.144l-.299-.178-3.104.814.828-3.025-.195-.311c-.822-1.309-1.257-2.825-1.257-4.373.001-4.586 3.733-8.317 8.324-8.317z"/>
+                </svg>
+                <span>سيتم إرسال التذكرة عبر الواتساب</span>
+              </div>
+              <p style={{ fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.8)', margin: 0, lineHeight: 1.6 }}>
+                سيصلك كود الـ QR والتذكرة الإلكترونية فوراً عبر رسالة واتساب بمجرد اعتماد الإيصال.
+              </p>
+            </div>
+          )}
 
           {/* Registrant Details Card */}
           <div style={{
