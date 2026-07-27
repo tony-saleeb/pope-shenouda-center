@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import {
   collection, query, where, orderBy, limit,
-  onSnapshot, getDocs, documentId,
+  onSnapshot, getDocs, documentId, Timestamp,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
@@ -22,14 +22,54 @@ interface CachedRegistrantInfo {
   fetchedAt: number;
 }
 
+interface RawTicketData {
+  id: string;
+  registrantId?: string;
+  registrantName?: string;
+  church?: string;
+  phoneNumber?: string;
+  used?: boolean;
+  usedAt?: Timestamp | null;
+  usedByUsherId?: string;
+}
+
 interface ScannedTicketItem {
   id: string;
   registrantId?: string;
   registrantName?: string;
   church?: string;
   phoneNumber?: string;
-  usedAt?: any;
+  usedAt?: Timestamp | null;
   usedByUsherId?: string;
+}
+
+/**
+ * KPI summary card component to avoid inline JSX repetition.
+ */
+function KpiCard({
+  title,
+  value,
+  unit,
+  color,
+}: {
+  title: string;
+  value: number;
+  unit: string;
+  color: string;
+}) {
+  return (
+    <div className="glass-card" style={{ padding: '1.25rem', textAlign: 'right' }}>
+      <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.35rem' }}>
+        {title}
+      </span>
+      <div style={{ fontSize: '2.25rem', fontWeight: 900, color, lineHeight: 1.1 }}>
+        {value.toLocaleString('ar-EG')}
+        <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginRight: '0.4rem' }}>
+          {unit}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -44,12 +84,30 @@ function escapeCsvField(val: string | number | null | undefined): string {
 }
 
 /**
+ * Format Timestamp helper safely.
+ */
+function formatTime(ts?: Timestamp | null): string {
+  if (!ts) return 'غير محدد';
+  try {
+    const date = ts.toDate ? ts.toDate() : new Date((ts as any).seconds * 1000);
+    return new Intl.DateTimeFormat('ar-EG', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(date);
+  } catch {
+    return 'غير محدد';
+  }
+}
+
+/**
  * Batched resolver that hydrates scanned tickets with registrant details.
  * Replaces N+1 per-ticket getDoc calls with batched 'in' queries (chunks of 10)
  * while maintaining 15-minute TTL cache and negative caching semantics.
  */
 async function resolveScannedTickets(
-  rawTickets: any[],
+  rawTickets: RawTicketData[],
   cacheMap: Map<string, CachedRegistrantInfo>
 ): Promise<ScannedTicketItem[]> {
   const now = Date.now();
@@ -119,7 +177,7 @@ async function resolveScannedTickets(
     }
   }
 
-  // 3. Hydrate rawTickets from ticket fields + cache
+  // 3. Hydrate rawTickets from ticket fields + cache (preserving Firestore orderBy usedAt desc order)
   return rawTickets.map((data) => {
     const regId = data.registrantId;
     let name = data.registrantName;
@@ -193,9 +251,9 @@ export default function ScannedAttendeesPage() {
         // Track snapshot version to guard against race conditions
         const currentVersion = ++snapshotVersionRef.current;
 
-        const rawTickets = snapshot.docs.map((docSnap) => ({
+        const rawTickets: RawTicketData[] = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
-          ...(docSnap.data() as any),
+          ...(docSnap.data() as Omit<RawTicketData, 'id'>),
         }));
 
         // Resolve detailed registrant info using batched 'in' queries & TTL cache
@@ -209,13 +267,7 @@ export default function ScannedAttendeesPage() {
           return;
         }
 
-        // Ensure order by usedAt descending
-        resolvedItems.sort((a, b) => {
-          const tA = a.usedAt?.toMillis?.() || a.usedAt?.seconds * 1000 || 0;
-          const tB = b.usedAt?.toMillis?.() || b.usedAt?.seconds * 1000 || 0;
-          return tB - tA;
-        });
-
+        // Firestore query already provides results ordered by usedAt desc; no manual sort needed
         setTickets(resolvedItems);
         setLoading(false);
       },
@@ -252,22 +304,6 @@ export default function ScannedAttendeesPage() {
       return matchSearch && matchChurch;
     });
   }, [tickets, searchTerm, churchFilter]);
-
-  // Format timestamp helper
-  const formatTime = (ts: any) => {
-    if (!ts) return 'غير محدد';
-    try {
-      const date = ts.toDate ? ts.toDate() : new Date(ts.seconds * 1000);
-      return new Intl.DateTimeFormat('ar-EG', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      }).format(date);
-    } catch {
-      return 'غير محدد';
-    }
-  };
 
   // Export CSV helper with proper escaping and object URL revocation
   const exportCSV = () => {
@@ -351,29 +387,20 @@ export default function ScannedAttendeesPage() {
         </button>
       </div>
 
-      {/* KPI Cards: Total Scanned & Total Unique Churches */}
+      {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-        {/* Card 1: Total Scanned at Gate */}
-        <div className="glass-card" style={{ padding: '1.25rem', textAlign: 'right' }}>
-          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.35rem' }}>
-            إجمالي الحضور الفعلي بالبوابة
-          </span>
-          <div style={{ fontSize: '2.25rem', fontWeight: 900, color: '#fbba33', lineHeight: 1.1 }}>
-            {tickets.length.toLocaleString('ar-EG')}
-            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginRight: '0.4rem' }}>شخصاً</span>
-          </div>
-        </div>
-
-        {/* Card 2: Total Unique Churches */}
-        <div className="glass-card" style={{ padding: '1.25rem', textAlign: 'right' }}>
-          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.35rem' }}>
-            عدد الكنائس الممثلة بالدخول
-          </span>
-          <div style={{ fontSize: '2.25rem', fontWeight: 900, color: '#34d399', lineHeight: 1.1 }}>
-            {churchesList.length.toLocaleString('ar-EG')}
-            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginRight: '0.4rem' }}>كنيسة</span>
-          </div>
-        </div>
+        <KpiCard
+          title="إجمالي الحضور الفعلي بالبوابة"
+          value={tickets.length}
+          unit="شخصاً"
+          color="#fbba33"
+        />
+        <KpiCard
+          title="عدد الكنائس الممثلة بالدخول"
+          value={churchesList.length}
+          unit="كنيسة"
+          color="#34d399"
+        />
       </div>
 
       {/* Search & Filter Bar */}
