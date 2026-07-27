@@ -1,50 +1,16 @@
 'use client';
 
-import { useEffect, useState, useMemo, useRef } from 'react';
-import {
-  collection, query, where, orderBy, limit,
-  onSnapshot, getDocs, documentId, Timestamp,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
+import { useState, useMemo } from 'react';
+import { Timestamp } from 'firebase/firestore';
 import { useAuth } from '@/lib/auth/context';
-
-/** Cache TTL: 15 minutes in milliseconds */
-const CACHE_TTL_MS = 15 * 60 * 1000;
-/** Cleanup interval: 5 minutes in milliseconds */
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
-/** Max scanned tickets limit for real-time stream */
-const SCANNED_TICKETS_LIMIT = 300;
-
-interface CachedRegistrantInfo {
-  fullName: string;
-  church: string;
-  phoneNumber: string;
-  fetchedAt: number;
-}
-
-interface RawTicketData {
-  id: string;
-  registrantId?: string;
-  registrantName?: string;
-  church?: string;
-  phoneNumber?: string;
-  used?: boolean;
-  usedAt?: Timestamp | null;
-  usedByUsherId?: string;
-}
-
-interface ScannedTicketItem {
-  id: string;
-  registrantId?: string;
-  registrantName?: string;
-  church?: string;
-  phoneNumber?: string;
-  usedAt?: Timestamp | null;
-  usedByUsherId?: string;
-}
+import {
+  useScannedTickets,
+  ScannedTicketItem,
+  PLACEHOLDER_UNKNOWN_CHURCH,
+} from '@/lib/hooks/useScannedTickets';
 
 /**
- * KPI summary card component to avoid inline JSX repetition.
+ * KPI summary card component to display metrics.
  */
 function KpiCard({
   title,
@@ -73,8 +39,131 @@ function KpiCard({
 }
 
 /**
+ * Filter bar subcomponent for search and church selection.
+ */
+function ScannedAttendeesFilterBar({
+  searchTerm,
+  onSearchChange,
+  churchFilter,
+  onChurchChange,
+  churchesList,
+}: {
+  searchTerm: string;
+  onSearchChange: (val: string) => void;
+  churchFilter: string;
+  onChurchChange: (val: string) => void;
+  churchesList: string[];
+}) {
+  return (
+    <div className="glass-card" style={{ padding: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
+      <div style={{ flex: '1 1 200px' }}>
+        <input
+          type="text"
+          className="form-input"
+          placeholder="بحث باسم الحاضر أو رقم الموبايل..."
+          value={searchTerm}
+          onChange={(e) => onSearchChange(e.target.value)}
+          style={{ width: '100%' }}
+        />
+      </div>
+
+      {churchesList.length > 0 && (
+        <div style={{ flex: '0 0 180px' }}>
+          <select
+            className="form-input"
+            value={churchFilter}
+            onChange={(e) => onChurchChange(e.target.value)}
+            style={{ width: '100%' }}
+          >
+            <option value="">جميع الكنائس</option>
+            {churchesList.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Table subcomponent rendering scanned attendee rows.
+ */
+function ScannedAttendeesTable({
+  tickets,
+  formatTime,
+}: {
+  tickets: ScannedTicketItem[];
+  formatTime: (ts?: Timestamp | null) => string;
+}) {
+  if (tickets.length === 0) {
+    return (
+      <div className="glass-card" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
+        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem', opacity: 0.5 }}>🎫</div>
+        <p style={{ fontSize: '1rem', fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>
+          لم يتم تسجيل أي حضور بالبوابة حتى الآن
+        </p>
+        <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.25rem' }}>
+          عند مسح تذكرة الحاضرين عند مدخل القاعة ستظهر أسماؤهم وبياناتهم الكاملة هنا فوراً
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="glass-card overflow-hidden" style={{ padding: 0 }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+          <thead>
+            <tr style={{ background: 'rgba(242, 158, 19, 0.08)', borderBottom: '1px solid rgba(242, 158, 19, 0.2)' }}>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>#</th>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>اسم الحاضر</th>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>الكنيسة</th>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>رقم الموبايل</th>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>وقت الدخول</th>
+              <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>الماسح / الخادم</th>
+            </tr>
+          </thead>
+          <tbody>
+            {tickets.map((t, idx) => (
+              <tr
+                key={t.id}
+                style={{
+                  borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+                  transition: 'background 0.2s ease',
+                }}
+              >
+                <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.4)' }}>
+                  {(idx + 1).toLocaleString('ar-EG')}
+                </td>
+                <td style={{ padding: '0.875rem 1rem', fontWeight: 700, color: '#ffffff' }}>
+                  {t.registrantName}
+                </td>
+                <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: 'rgba(255,255,255,0.8)' }}>
+                  {t.church}
+                </td>
+                <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }} dir="ltr">
+                  {t.phoneNumber || '-'}
+                </td>
+                <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: '#34d399', fontWeight: 600 }}>
+                  {formatTime(t.usedAt)}
+                </td>
+                <td style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>
+                  {t.usedByUsherId}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Properly escapes CSV field values according to RFC 4180.
- * Doubles any embedded double quotes and wraps the field in double quotes.
  */
 function escapeCsvField(val: string | number | null | undefined): string {
   if (val === null || val === undefined) return '""';
@@ -87,7 +176,7 @@ function escapeCsvField(val: string | number | null | undefined): string {
  * Format Timestamp helper safely.
  */
 function formatTime(ts?: Timestamp | null): string {
-  if (!ts) return 'غير محدد';
+  if (!ts) return PLACEHOLDER_UNKNOWN_CHURCH;
   try {
     const date = ts.toDate ? ts.toDate() : new Date((ts as any).seconds * 1000);
     return new Intl.DateTimeFormat('ar-EG', {
@@ -97,194 +186,22 @@ function formatTime(ts?: Timestamp | null): string {
       hour12: true,
     }).format(date);
   } catch {
-    return 'غير محدد';
+    return PLACEHOLDER_UNKNOWN_CHURCH;
   }
-}
-
-/**
- * Batched resolver that hydrates scanned tickets with registrant details.
- * Replaces N+1 per-ticket getDoc calls with batched 'in' queries (chunks of 10)
- * while maintaining 15-minute TTL cache and negative caching semantics.
- */
-async function resolveScannedTickets(
-  rawTickets: RawTicketData[],
-  cacheMap: Map<string, CachedRegistrantInfo>
-): Promise<ScannedTicketItem[]> {
-  const now = Date.now();
-
-  // 1. Collect unique registrantIds that need fetching from Firestore
-  const missingIdsSet = new Set<string>();
-
-  for (const data of rawTickets) {
-    const regId = data.registrantId;
-    let name = data.registrantName;
-    let ch = data.church;
-    let phone = data.phoneNumber || '';
-
-    const isMissingData = !name || name === 'زائر' || !ch || ch === 'غير محدد' || !phone;
-
-    if (isMissingData && regId) {
-      const cached = cacheMap.get(regId);
-      const isExpired = cached && now - cached.fetchedAt > CACHE_TTL_MS;
-
-      if (!cached || isExpired) {
-        if (isExpired) {
-          cacheMap.delete(regId);
-        }
-        missingIdsSet.add(regId);
-      }
-    }
-  }
-
-  // 2. Batch fetch missing IDs in chunks of 10 using documentId() 'in' query
-  const idsToFetch = Array.from(missingIdsSet);
-  const CHUNK_SIZE = 10;
-
-  for (let i = 0; i < idsToFetch.length; i += CHUNK_SIZE) {
-    const chunk = idsToFetch.slice(i, i + CHUNK_SIZE);
-    try {
-      const q = query(
-        collection(db, 'registrants'),
-        where(documentId(), 'in', chunk)
-      );
-      const snap = await getDocs(q);
-
-      const foundIds = new Set<string>();
-      snap.forEach((docSnap) => {
-        foundIds.add(docSnap.id);
-        const r = docSnap.data();
-        cacheMap.set(docSnap.id, {
-          fullName: r.fullName || '',
-          church: r.church || '',
-          phoneNumber: r.phoneNumber || '',
-          fetchedAt: now,
-        });
-      });
-
-      // Negative caching for any registrant IDs not found in Firestore
-      chunk.forEach((id) => {
-        if (!foundIds.has(id)) {
-          cacheMap.set(id, {
-            fullName: '',
-            church: '',
-            phoneNumber: '',
-            fetchedAt: now,
-          });
-        }
-      });
-    } catch (err) {
-      console.error('Error batch-fetching registrants chunk:', err);
-    }
-  }
-
-  // 3. Hydrate rawTickets from ticket fields + cache (preserving Firestore orderBy usedAt desc order)
-  return rawTickets.map((data) => {
-    const regId = data.registrantId;
-    let name = data.registrantName;
-    let ch = data.church;
-    let phone = data.phoneNumber || '';
-
-    if (regId) {
-      const cached = cacheMap.get(regId);
-      if (cached) {
-        if (cached.fullName) name = cached.fullName;
-        if (cached.church) ch = cached.church;
-        if (cached.phoneNumber) phone = cached.phoneNumber;
-      }
-    }
-
-    return {
-      id: data.id,
-      registrantId: regId || data.id,
-      registrantName: name || 'حاضر بدون اسم',
-      church: ch || 'غير محدد',
-      phoneNumber: phone,
-      usedAt: data.usedAt,
-      usedByUsherId: data.usedByUsherId || 'الماسح الإلكتروني',
-    };
-  });
 }
 
 export default function ScannedAttendeesPage() {
   const { user } = useAuth();
-  const [tickets, setTickets] = useState<ScannedTicketItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { tickets, loading } = useScannedTickets(user);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [churchFilter, setChurchFilter] = useState('');
-
-  // TTL Cache for registrant details by registrantId to prevent N+1 Firestore reads
-  const registrantsCacheRef = useRef<Map<string, CachedRegistrantInfo>>(new Map());
-  // Version counter to prevent out-of-order state updates during fast snapshot emissions
-  const snapshotVersionRef = useRef<number>(0);
-
-  // Automatic periodic garbage collector to sweep expired entries every 5 minutes and clear on unmount
-  useEffect(() => {
-    const sweeper = setInterval(() => {
-      const now = Date.now();
-      for (const [key, entry] of registrantsCacheRef.current.entries()) {
-        if (now - entry.fetchedAt > CACHE_TTL_MS) {
-          registrantsCacheRef.current.delete(key);
-        }
-      }
-    }, CLEANUP_INTERVAL_MS);
-
-    return () => {
-      clearInterval(sweeper);
-      registrantsCacheRef.current.clear();
-    };
-  }, []);
-
-  // Real-time listener for scanned tickets
-  useEffect(() => {
-    if (!user) return;
-
-    const qScanned = query(
-      collection(db, 'tickets'),
-      where('used', '==', true),
-      orderBy('usedAt', 'desc'),
-      limit(SCANNED_TICKETS_LIMIT)
-    );
-
-    const unsubscribeScanned = onSnapshot(
-      qScanned,
-      async (snapshot) => {
-        // Track snapshot version to guard against race conditions
-        const currentVersion = ++snapshotVersionRef.current;
-
-        const rawTickets: RawTicketData[] = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...(docSnap.data() as Omit<RawTicketData, 'id'>),
-        }));
-
-        // Resolve detailed registrant info using batched 'in' queries & TTL cache
-        const resolvedItems = await resolveScannedTickets(
-          rawTickets,
-          registrantsCacheRef.current
-        );
-
-        // Discard out-of-order snapshot resolution if a newer snapshot was triggered in the meantime
-        if (currentVersion !== snapshotVersionRef.current) {
-          return;
-        }
-
-        // Firestore query already provides results ordered by usedAt desc; no manual sort needed
-        setTickets(resolvedItems);
-        setLoading(false);
-      },
-      (err) => {
-        console.error('Error fetching scanned tickets:', err);
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribeScanned();
-  }, [user]);
 
   // Unique list of churches for filtering
   const churchesList = useMemo(() => {
     const set = new Set<string>();
     tickets.forEach((t) => {
-      if (t.church && t.church !== 'غير محدد') {
+      if (t.church && t.church !== PLACEHOLDER_UNKNOWN_CHURCH) {
         set.add(t.church);
       }
     });
@@ -348,6 +265,8 @@ export default function ScannedAttendeesPage() {
     );
   }
 
+  const isFiltered = Boolean(searchTerm.trim() || churchFilter);
+
   return (
     <div className="space-y-6">
       {/* Header Title & Controls */}
@@ -387,11 +306,11 @@ export default function ScannedAttendeesPage() {
         </button>
       </div>
 
-      {/* KPI Cards */}
+      {/* KPI Cards: Dynamic match to filtered view */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
         <KpiCard
-          title="إجمالي الحضور الفعلي بالبوابة"
-          value={tickets.length}
+          title={isFiltered ? 'الحضور الفعلي (المصفّى)' : 'إجمالي الحضور الفعلي بالبوابة'}
+          value={filteredTickets.length}
           unit="شخصاً"
           color="#fbba33"
         />
@@ -404,96 +323,19 @@ export default function ScannedAttendeesPage() {
       </div>
 
       {/* Search & Filter Bar */}
-      <div className="glass-card" style={{ padding: '1rem', display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center' }}>
-        <div style={{ flex: '1 1 200px' }}>
-          <input
-            type="text"
-            className="form-input"
-            placeholder="بحث باسم الحاضر أو رقم الموبايل..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ width: '100%' }}
-          />
-        </div>
-
-        {churchesList.length > 0 && (
-          <div style={{ flex: '0 0 180px' }}>
-            <select
-              className="form-input"
-              value={churchFilter}
-              onChange={(e) => setChurchFilter(e.target.value)}
-              style={{ width: '100%' }}
-            >
-              <option value="">جميع الكنائس</option>
-              {churchesList.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+      <ScannedAttendeesFilterBar
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        churchFilter={churchFilter}
+        onChurchChange={setChurchFilter}
+        churchesList={churchesList}
+      />
 
       {/* Scanned Attendees Table */}
-      {filteredTickets.length === 0 ? (
-        <div className="glass-card" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem', opacity: 0.5 }}>🎫</div>
-          <p style={{ fontSize: '1rem', fontWeight: 700, color: 'rgba(255,255,255,0.7)' }}>
-            لم يتم تسجيل أي حضور بالبوابة حتى الآن
-          </p>
-          <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.25rem' }}>
-            عند مسح تذكرة الحاضرين عند مدخل القاعة ستظهر أسماؤهم وبياناتهم الكاملة هنا فوراً
-          </p>
-        </div>
-      ) : (
-        <div className="glass-card overflow-hidden" style={{ padding: 0 }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="admin-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
-              <thead>
-                <tr style={{ background: 'rgba(242, 158, 19, 0.08)', borderBottom: '1px solid rgba(242, 158, 19, 0.2)' }}>
-                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>#</th>
-                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>اسم الحاضر</th>
-                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>الكنيسة</th>
-                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>رقم الموبايل</th>
-                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>وقت الدخول</th>
-                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>الماسح / الخادم</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredTickets.map((t, idx) => (
-                  <tr
-                    key={t.id}
-                    style={{
-                      borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-                      transition: 'background 0.2s ease',
-                    }}
-                  >
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.4)' }}>
-                      {(idx + 1).toLocaleString('ar-EG')}
-                    </td>
-                    <td style={{ padding: '0.875rem 1rem', fontWeight: 700, color: '#ffffff' }}>
-                      {t.registrantName}
-                    </td>
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: 'rgba(255,255,255,0.8)' }}>
-                      {t.church}
-                    </td>
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }} dir="ltr">
-                      {t.phoneNumber || '-'}
-                    </td>
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: '#34d399', fontWeight: 600 }}>
-                      {formatTime(t.usedAt)}
-                    </td>
-                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)', fontFamily: 'monospace' }}>
-                      {t.usedByUsherId}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      <ScannedAttendeesTable
+        tickets={filteredTickets}
+        formatTime={formatTime}
+      />
     </div>
   );
 }
