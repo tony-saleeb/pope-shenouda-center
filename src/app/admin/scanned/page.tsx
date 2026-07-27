@@ -5,6 +5,18 @@ import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/fire
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
 
+/** Cache TTL: 15 minutes in milliseconds */
+const CACHE_TTL_MS = 15 * 60 * 1000;
+/** Cleanup interval: 5 minutes in milliseconds */
+const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+interface CachedRegistrantInfo {
+  fullName: string;
+  church: string;
+  phoneNumber: string;
+  fetchedAt: number;
+}
+
 interface ScannedTicketItem {
   id: string;
   registrantId?: string;
@@ -22,8 +34,22 @@ export default function ScannedAttendeesPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [churchFilter, setChurchFilter] = useState('');
 
-  // Cache registrant info by registrantId to avoid N+1 Firestore reads on every snapshot
-  const registrantsCacheRef = useRef<Map<string, { fullName: string; church: string; phoneNumber: string }>>(new Map());
+  // TTL Cache for registrant details by registrantId to prevent N+1 Firestore reads
+  const registrantsCacheRef = useRef<Map<string, CachedRegistrantInfo>>(new Map());
+
+  // Automatic periodic garbage collector to sweep expired entries every 5 minutes
+  useEffect(() => {
+    const sweeper = setInterval(() => {
+      const now = Date.now();
+      for (const [key, entry] of registrantsCacheRef.current.entries()) {
+        if (now - entry.fetchedAt > CACHE_TTL_MS) {
+          registrantsCacheRef.current.delete(key);
+        }
+      }
+    }, CLEANUP_INTERVAL_MS);
+
+    return () => clearInterval(sweeper);
+  }, []);
 
   // Real-time listener for scanned tickets
   useEffect(() => {
@@ -42,7 +68,7 @@ export default function ScannedAttendeesPage() {
           ...(docSnap.data() as any),
         }));
 
-        // Resolve detailed registrant info (Name, Church, Phone) for each scanned ticket using cache
+        // Resolve detailed registrant info (Name, Church, Phone) for each scanned ticket using TTL cache
         const resolvedItems: ScannedTicketItem[] = await Promise.all(
           rawTickets.map(async (data: any) => {
             const regId = data.registrantId || data.id;
@@ -53,21 +79,27 @@ export default function ScannedAttendeesPage() {
             const isMissingData = !name || name === 'زائر' || !ch || ch === 'غير محدد' || !phone;
 
             if (isMissingData) {
-              // Check memory cache first to avoid N+1 Firestore calls
+              const now = Date.now();
               const cached = registrantsCacheRef.current.get(regId);
-              if (cached) {
+              const isExpired = cached && now - cached.fetchedAt > CACHE_TTL_MS;
+
+              if (cached && !isExpired) {
                 name = cached.fullName || name;
                 ch = cached.church || ch;
                 phone = cached.phoneNumber || phone;
               } else {
+                if (isExpired) {
+                  registrantsCacheRef.current.delete(regId);
+                }
                 try {
                   const regSnap = await getDoc(doc(db, 'registrants', regId));
                   if (regSnap.exists()) {
                     const r = regSnap.data();
-                    const fetchedInfo = {
+                    const fetchedInfo: CachedRegistrantInfo = {
                       fullName: r.fullName || '',
                       church: r.church || '',
                       phoneNumber: r.phoneNumber || '',
+                      fetchedAt: now,
                     };
                     registrantsCacheRef.current.set(regId, fetchedInfo);
 
