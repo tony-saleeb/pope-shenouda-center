@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { uploadPaymentScreenshot, UploadProgress } from '@/lib/firebase/storage';
 import {
@@ -79,6 +79,7 @@ export default function RegisterPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkingPhone, setCheckingPhone] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -138,10 +139,32 @@ export default function RegisterPage() {
   };
 
   // ─── Navigation ──────────────────────────────────────────────────
-  const goNext = () => {
-    if (validateStep(currentStep)) {
-      setCurrentStep((prev) => Math.min(prev + 1, WIZARD_STEPS.length - 1));
+  const goNext = async () => {
+    if (!validateStep(currentStep)) return;
+
+    // Step 2 is Phone Step — Check uniqueness in Firestore before proceeding to screenshot upload
+    if (currentStep === 2) {
+      setCheckingPhone(true);
+      try {
+        const phone = normalizePhone(formData.phoneNumber);
+        const phoneRef = doc(db, 'phoneIndex', phone);
+        const phoneDoc = await getDoc(phoneRef);
+
+        if (phoneDoc.exists()) {
+          setErrors((prev) => ({
+            ...prev,
+            phoneNumber: VALIDATION_MESSAGES.duplicatePhone,
+          }));
+          return;
+        }
+      } catch (err) {
+        console.error('Error checking duplicate phone:', err);
+      } finally {
+        setCheckingPhone(false);
+      }
     }
+
+    setCurrentStep((prev) => Math.min(prev + 1, WIZARD_STEPS.length - 1));
   };
 
   const goBack = () => {
@@ -546,13 +569,22 @@ export default function RegisterPage() {
               <button
                 className="btn btn-primary btn-full"
                 onClick={goNext}
-                disabled={!isStepValid()}
+                disabled={!isStepValid() || checkingPhone}
               >
-                <span>التالي</span>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
-                  <path d="M5 12h14" />
-                  <path d="m12 5 7 7-7 7" />
-                </svg>
+                {checkingPhone ? (
+                  <>
+                    <span className="spinner" />
+                    <span>جاري التحقق من الرقم...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>التالي</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
+                      <path d="M5 12h14" />
+                      <path d="m12 5 7 7-7 7" />
+                    </svg>
+                  </>
+                )}
               </button>
             )}
 

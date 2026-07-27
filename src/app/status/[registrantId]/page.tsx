@@ -16,7 +16,7 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
   pulse: boolean;
 }> = {
   pending_verification: {
-    titleAr: 'تم استلام طلبك بنجاح! 📱',
+    titleAr: 'تم استلام طلبك بنجاح!',
     descAr: 'تم استلام بياناتك وإيصال الدفع بنجاح — سيتم مراجعة الإيصال وإرسال التذكرة الإلكترونية (كود QR) مباشرة إلى حساب الواتساب الخاص بك فور التأكيد.',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -28,7 +28,7 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
     pulse: true,
   },
   auto_approved: {
-    titleAr: 'تمت الموافقة وتفعيل التذكرة! 🎉',
+    titleAr: 'تمت الموافقة وتفعيل التذكرة!',
     descAr: 'تم التحقق من الدفع بنجاح — تذكرتك جاهزة وسيتم إرسالها أيضاً عبر الواتساب',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -40,7 +40,7 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
     pulse: false,
   },
   manual_review: {
-    titleAr: 'تم استلام طلبك بنجاح! 📱',
+    titleAr: 'تم استلام طلبك بنجاح!',
     descAr: 'طلبك قيد المراجعة حالياً وسوف تصلك التذكرة الإلكترونية مباشرة عبر الواتساب على رقم الموبايل المسجل فور تأكيد الإيصال.',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -52,7 +52,7 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
     pulse: true,
   },
   approved: {
-    titleAr: 'تمت الموافقة وتفعيل التذكرة! 🎉',
+    titleAr: 'تمت الموافقة وتفعيل التذكرة!',
     descAr: 'تم التحقق من الدفع بنجاح — تذكرتك جاهزة وسيتم إرسالها أيضاً عبر الواتساب',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
