@@ -27,108 +27,336 @@ export default function PaymentInstructionsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn"
       onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        backgroundColor: 'rgba(8, 4, 1, 0.88)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem',
+        animation: 'fadeIn 0.25s ease-out',
+      }}
     >
       <div
-        className="relative max-w-lg w-full glass-card p-6 md:p-8 rounded-2xl border border-amber-500/30 shadow-2xl overflow-y-auto max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
-        style={{ background: 'rgba(19, 12, 5, 0.96)', color: '#f7f0e4' }}
+        style={{
+          position: 'relative',
+          maxWidth: '30rem',
+          width: '100%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          background: 'linear-gradient(145deg, rgba(26, 16, 7, 0.97), rgba(14, 8, 3, 0.98))',
+          border: '1px solid rgba(242, 158, 19, 0.35)',
+          boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(242, 158, 19, 0.12)',
+          borderRadius: '1.5rem',
+          padding: '1.75rem 1.5rem',
+          color: '#f7f0e4',
+          direction: 'rtl',
+        }}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 left-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-neutral-300 flex items-center justify-center text-lg transition-all"
-          aria-label="إغلاق"
+          style={{
+            position: 'absolute',
+            top: '1.25rem',
+            left: '1.25rem',
+            width: '2.25rem',
+            height: '2.25rem',
+            borderRadius: '50%',
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            color: '#e6ded6',
+            fontSize: '1.125rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s ease',
+          }}
+          title="إغلاق"
         >
           ✕
         </button>
 
         {/* Modal Header */}
-        <div className="text-center mb-6">
-          <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl shadow-inner">
-            💳
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{
+            width: '4rem',
+            height: '4rem',
+            margin: '0 auto 0.875rem',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, rgba(242, 158, 19, 0.25), rgba(179, 130, 63, 0.1))',
+            border: '1px solid rgba(242, 158, 19, 0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 8px 25px rgba(242, 158, 19, 0.2)',
+          }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="5" width="20" height="14" rx="2" />
+              <line x1="2" y1="10" x2="22" y2="10" />
+            </svg>
           </div>
-          <h2 className="text-2xl font-black text-white mb-1">
+          <h2 style={{
+            fontSize: '1.5rem',
+            fontWeight: 900,
+            color: '#ffffff',
+            marginBottom: '0.35rem',
+            background: 'linear-gradient(135deg, #ffffff, #fbba33)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}>
             تعليمات ورسوم التسجيل
           </h2>
-          <p className="text-sm text-neutral-400">
+          <p style={{ fontSize: '0.875rem', color: 'rgba(247, 240, 228, 0.65)', margin: 0 }}>
             يرجى قراءة خطوات الدفع التالية بعناية قبل البدء
           </p>
         </div>
 
-        {/* Price Card */}
-        <div className="mb-5 p-4 rounded-xl bg-gradient-to-r from-amber-500/20 via-amber-500/10 to-amber-500/20 border border-amber-500/40 text-center">
-          <span className="text-xs font-semibold text-amber-300 uppercase tracking-wider block mb-1">
+        {/* Price Tag Box */}
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(242, 158, 19, 0.18), rgba(179, 130, 63, 0.08))',
+          border: '1px solid rgba(242, 158, 19, 0.4)',
+          borderRadius: '1.125rem',
+          padding: '1rem',
+          textAlign: 'center',
+          marginBottom: '1.25rem',
+          boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.1)',
+        }}>
+          <span style={{
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            color: '#fbba33',
+            letterSpacing: '0.05em',
+            display: 'block',
+            marginBottom: '0.25rem',
+          }}>
             رسوم اشتراك المؤتمر
           </span>
-          <div className="text-3xl font-black text-amber-400 flex items-center justify-center gap-1">
+          <div style={{
+            fontSize: '2rem',
+            fontWeight: 900,
+            color: '#fbba33',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            lineHeight: 1,
+          }}>
             <span>400</span>
-            <span className="text-lg font-bold text-amber-200">جنيه مصري (EGP)</span>
+            <span style={{ fontSize: '1.125rem', fontWeight: 800, color: '#f7f0e4' }}>جنيه مصري (EGP)</span>
           </div>
         </div>
 
-        {/* Payment Methods */}
-        <div className="space-y-4 mb-6">
-          {/* Method 1: Direct InstaPay Link */}
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-            <h4 className="font-bold text-white text-sm mb-2 flex items-center gap-2">
-              <span className="text-amber-400">❶</span> الدفع المباشر عبر InstaPay:
+        {/* Payment Methods Options */}
+        <div style={{ display: 'grid', gap: '1rem', marginBottom: '1.25rem' }}>
+          {/* Method 1: InstaPay Direct Payment */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '1.125rem',
+            padding: '1rem',
+          }}>
+            <h4 style={{
+              fontSize: '0.9375rem',
+              fontWeight: 800,
+              color: '#ffffff',
+              marginBottom: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}>
+              <span style={{
+                background: 'rgba(242, 158, 19, 0.2)',
+                color: '#fbba33',
+                width: '1.5rem',
+                height: '1.5rem',
+                borderRadius: '50%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8125rem',
+                fontWeight: 900,
+              }}>1</span>
+              <span>الدفع المباشر عبر تطبيق InstaPay:</span>
             </h4>
+
             <a
               href="https://ipn.eg/S/deaconantonius/instapay/8swCdp"
               target="_blank"
               rel="noopener noreferrer"
-              className="btn btn-primary btn-full py-3 text-sm font-bold text-center block text-white no-underline shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #10b981, #059669)', border: 'none' }}
+              style={{
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                background: 'linear-gradient(135deg, #059669, #10b981)',
+                border: '1px solid rgba(16, 185, 129, 0.5)',
+                borderRadius: '0.875rem',
+                padding: '0.875rem 1rem',
+                color: '#ffffff',
+                fontWeight: 800,
+                fontSize: '0.9375rem',
+                boxShadow: '0 4px 20px rgba(16, 185, 129, 0.35)',
+                transition: 'all 0.2s ease',
+              }}
             >
-              🚀 فتح تطبيق InstaPay والدفع المباشر
+              <span>🚀 فتح تطبيق InstaPay والدفع المباشر</span>
             </a>
-            <span className="text-[0.75rem] text-neutral-400 text-center block mt-1.5">
-              (رابط التحويل المباشر إلى deaconantonius@instapay)
+
+            <span style={{
+              display: 'block',
+              textAlign: 'center',
+              fontSize: '0.75rem',
+              color: 'rgba(247, 240, 228, 0.5)',
+              marginTop: '0.5rem',
+            }}>
+              رابط التحويل المباشر إلى: deaconantonius@instapay
             </span>
           </div>
 
-          {/* Method 2: Manual Transfer Phone Number */}
-          <div className="p-4 rounded-xl bg-white/5 border border-white/10">
-            <h4 className="font-bold text-white text-sm mb-2 flex items-center gap-2">
-              <span className="text-amber-400">❷</span> أو التحويل اليدوي إلى هذا الرقم:
+          {/* Method 2: Transfer to Phone Number */}
+          <div style={{
+            background: 'rgba(255, 255, 255, 0.04)',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            borderRadius: '1.125rem',
+            padding: '1rem',
+          }}>
+            <h4 style={{
+              fontSize: '0.9375rem',
+              fontWeight: 800,
+              color: '#ffffff',
+              marginBottom: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}>
+              <span style={{
+                background: 'rgba(242, 158, 19, 0.2)',
+                color: '#fbba33',
+                width: '1.5rem',
+                height: '1.5rem',
+                borderRadius: '50%',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '0.8125rem',
+                fontWeight: 900,
+              }}>2</span>
+              <span>أو التحويل اليدوي إلى هذا الرقم:</span>
             </h4>
-            <div className="flex items-center justify-between p-3 rounded-lg bg-black/40 border border-white/10">
-              <span className="font-mono font-bold text-lg text-amber-300 tracking-wider" dir="ltr">
+
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'rgba(0, 0, 0, 0.4)',
+              border: '1px solid rgba(242, 158, 19, 0.25)',
+              borderRadius: '0.875rem',
+              padding: '0.625rem 0.875rem',
+            }}>
+              <span style={{
+                fontFamily: 'monospace',
+                fontSize: '1.125rem',
+                fontWeight: 800,
+                color: '#fbba33',
+                letterSpacing: '0.05em',
+              }} dir="ltr">
                 0122 2572676
               </span>
+
               <button
                 onClick={handleCopyPhone}
-                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-all"
+                style={{
+                  background: copied ? 'rgba(16, 185, 129, 0.25)' : 'rgba(242, 158, 19, 0.2)',
+                  border: copied ? '1px solid rgba(16, 185, 129, 0.5)' : '1px solid rgba(242, 158, 19, 0.4)',
+                  color: copied ? '#34d399' : '#fbba33',
+                  padding: '0.4rem 0.75rem',
+                  borderRadius: '0.625rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
               >
-                {copied ? 'تم النسخ ✓' : '📋 نسخ الرقم'}
+                <span>{copied ? 'تم النسخ ✓' : '📋 نسخ الرقم'}</span>
               </button>
             </div>
-            <span className="text-[0.75rem] text-neutral-400 block mt-1">
-              * مقبول عبر InstaPay أو محفظة فودافون كاش
+
+            <span style={{
+              display: 'block',
+              fontSize: '0.75rem',
+              color: 'rgba(247, 240, 228, 0.5)',
+              marginTop: '0.5rem',
+            }}>
+              * مقبول عبر تطبيق InstaPay أو فودافون كاش
             </span>
           </div>
         </div>
 
-        {/* Critical Screenshot Warning */}
-        <div className="p-4 mb-6 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm leading-relaxed">
-          <div className="font-bold text-amber-300 mb-1 flex items-center gap-1.5">
+        {/* Screenshot Alert Box */}
+        <div style={{
+          background: 'rgba(245, 158, 11, 0.1)',
+          border: '1px solid rgba(245, 158, 11, 0.35)',
+          borderRadius: '1.125rem',
+          padding: '1rem',
+          marginBottom: '1.5rem',
+        }}>
+          <div style={{
+            fontSize: '0.875rem',
+            fontWeight: 800,
+            color: '#fbba33',
+            marginBottom: '0.35rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.375rem',
+          }}>
             <span>⚠️</span>
             <span>تنبيه هام جداً (صورة الإيصال):</span>
           </div>
-          <p className="text-xs text-neutral-300">
-            احرص على التقاط **لقطة شاشة (Screenshot)** لرسالة أو إيصال التحويل الناجح، حيث سيطلب منك **رفع صورة الإيصال** في الخطوة القادمة لإتمام التسجيل وتوليد تذكرتك.
+          <p style={{
+            fontSize: '0.8125rem',
+            color: 'rgba(247, 240, 228, 0.85)',
+            lineHeight: 1.6,
+            margin: 0,
+          }}>
+            احرص على التقاط <strong>لقطة شاشة (Screenshot)</strong> لإيصال تحويل الدفع الناجح، حيث سيطلب منك <strong>رفع صورة الإيصال</strong> في الخطوة القادمة لإتمام تسجيلك وإصدار تذكرتك.
           </p>
         </div>
 
-        {/* Action Button */}
+        {/* Main Action Button */}
         <button
           onClick={onProceed}
-          className="btn btn-primary btn-full py-3.5 text-base font-extrabold w-full shadow-xl"
-          style={{ background: 'linear-gradient(135deg, #f29e13, #b3823f)', color: '#fff' }}
+          style={{
+            width: '100%',
+            background: 'linear-gradient(135deg, #f29e13, #b3823f)',
+            border: '1px solid rgba(251, 186, 51, 0.5)',
+            borderRadius: '0.875rem',
+            padding: '0.9375rem 1rem',
+            color: '#ffffff',
+            fontWeight: 900,
+            fontSize: '1.0625rem',
+            cursor: 'pointer',
+            boxShadow: '0 8px 25px rgba(242, 158, 19, 0.35)',
+            transition: 'all 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+          }}
         >
-          فهمت ذلك، المتابعة للتسجيل ➔
+          <span>فهمت ذلك، المتابعة للتسجيل ➔</span>
         </button>
       </div>
     </div>
