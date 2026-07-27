@@ -13,6 +13,63 @@ interface NavItem {
   icon: (active: boolean) => React.ReactNode;
 }
 
+function ReviewBadge({ count, isMobile = false }: { count: number; isMobile?: boolean }) {
+  if (count <= 0) return null;
+  const label = count > 99 ? '99+' : count;
+
+  if (isMobile) {
+    return (
+      <span
+        title={`${count} طلبات في انتظار المراجعة`}
+        style={{
+          position: 'absolute',
+          top: '0.15rem',
+          right: 'calc(50% - 1.25rem)',
+          minWidth: '1rem',
+          height: '1rem',
+          padding: '0 0.2rem',
+          borderRadius: '9999px',
+          backgroundColor: '#ef4444',
+          color: '#ffffff',
+          fontSize: '0.625rem',
+          fontWeight: 800,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)',
+          lineHeight: 1,
+        }}
+      >
+        {label}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      title={`${count} طلبات في انتظار المراجعة`}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: '1.125rem',
+        height: '1.125rem',
+        padding: '0 0.3rem',
+        borderRadius: '9999px',
+        backgroundColor: '#ef4444',
+        color: '#ffffff',
+        fontSize: '0.6875rem',
+        fontWeight: 800,
+        lineHeight: 1,
+        boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)',
+        marginRight: '0.2rem',
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
 const NAV_ITEMS: NavItem[] = [
   {
     href: '/admin',
@@ -100,7 +157,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   // Real-time listener for pending review requests
   useEffect(() => {
-    if (!user || role !== 'admin') return;
+    if (!user || role !== 'admin') {
+      setPendingCount(0);
+      return;
+    }
 
     const q = query(
       collection(db, 'registrants'),
@@ -221,29 +281,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   >
                     {item.icon(isActive)}
                     <span>{item.label}</span>
-                    {item.href === '/admin/review' && pendingCount > 0 && (
-                      <span
-                        title={`${pendingCount} طلبات في انتظار المراجعة`}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          minWidth: '1.125rem',
-                          height: '1.125rem',
-                          padding: '0 0.3rem',
-                          borderRadius: '9999px',
-                          backgroundColor: '#ef4444',
-                          color: '#ffffff',
-                          fontSize: '0.6875rem',
-                          fontWeight: 800,
-                          lineHeight: 1,
-                          boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)',
-                          marginRight: '0.2rem',
-                        }}
-                      >
-                        {pendingCount > 99 ? '99+' : pendingCount}
-                      </span>
-                    )}
+                    {item.href === '/admin/review' && <ReviewBadge count={pendingCount} />}
                   </Link>
                 );
               })}
@@ -362,31 +400,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span style={{ fontSize: '0.625rem', fontWeight: isActive ? 700 : 500, whiteSpace: 'nowrap' }}>
                   {item.label}
                 </span>
-                {item.href === '/admin/review' && pendingCount > 0 && (
-                  <span
-                    title={`${pendingCount} طلبات في انتظار المراجعة`}
-                    style={{
-                      position: 'absolute',
-                      top: '0.15rem',
-                      right: 'calc(50% - 1.25rem)',
-                      minWidth: '1rem',
-                      height: '1rem',
-                      padding: '0 0.2rem',
-                      borderRadius: '9999px',
-                      backgroundColor: '#ef4444',
-                      color: '#ffffff',
-                      fontSize: '0.625rem',
-                      fontWeight: 800,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)',
-                      lineHeight: 1,
-                    }}
-                  >
-                    {pendingCount > 99 ? '99+' : pendingCount}
-                  </span>
-                )}
+                {item.href === '/admin/review' && <ReviewBadge count={pendingCount} isMobile />}
               </Link>
             );
           })}
