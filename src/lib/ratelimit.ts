@@ -39,7 +39,7 @@ export async function limitByIp(
     return NextResponse.json(
       {
         error: 'Too many requests',
-        messageAr: 'محاولات كثيرة، برجاء المحاولة بعد قليل',
+        messageAr: 'تم الوصول للحد الأقصى للمحاولات المؤقت، برجاء الانتظار دقيقة والمحاولة مرة أخرى.',
       },
       {
         status: 429,

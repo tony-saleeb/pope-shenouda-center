@@ -18,9 +18,9 @@ import { getLimiter, limitByIp } from '@/lib/ratelimit';
 /** Anti-enumeration message: identical response returned regardless of registration existence. */
 const ANTI_ENUMERATION_MESSAGE = 'لو الرقم مسجّل عندنا، هيوصلك رابط التذكرة على الواتساب خلال دقائق.';
 
-/** Rate limiters: 3 req / 15m per IP, and 3 req / 1h per phone number. */
-const lookupIpLimiter = getLimiter('public-lookup-ip', 3, '15 m');
-const lookupPhoneLimiter = getLimiter('public-lookup-phone', 3, '1 h');
+/** Rate limiters: 30 req / 15m per IP, and 15 req / 15m per phone number. */
+const lookupIpLimiter = getLimiter('public-lookup-ip', 30, '15 m');
+const lookupPhoneLimiter = getLimiter('public-lookup-phone', 15, '15 m');
 
 export async function POST(request: NextRequest) {
   // 1. IP Rate Limiting
