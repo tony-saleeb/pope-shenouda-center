@@ -169,23 +169,8 @@ export default function AdminDashboard() {
             نظرة عامة على الإحصائيات
           </h1>
           <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
-            متابعة فورية لأعداد التسجيلات والحضور — يتم التحديث كل 30 ثانية
+            متابعة أعداد التسجيلات والحضور — يتم التحديث كل 30 ثانية
           </p>
-        </div>
-
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.5rem',
-          fontSize: '0.8125rem',
-          color: '#fbba33',
-          background: 'rgba(242, 158, 19, 0.1)',
-          padding: '0.5rem 0.875rem',
-          borderRadius: '0.75rem',
-          border: '1px solid rgba(242, 158, 19, 0.25)',
-        }}>
-          <div className="pulse-dot" style={{ background: '#fbba33' }} />
-          <span>مباشر</span>
         </div>
       </div>
 

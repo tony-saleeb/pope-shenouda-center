@@ -201,26 +201,9 @@ export default function ScannedAttendeesPage() {
       {/* Header Title & Controls */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ffffff', margin: 0 }}>
-              المسجلون في البوابة
-            </h1>
-            <span style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              background: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
-              color: '#34d399',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              padding: '0.2rem 0.6rem',
-              borderRadius: '9999px',
-            }}>
-              <span style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', background: '#10b981', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite' }} />
-              تحديث مباشر
-            </span>
-          </div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ffffff', margin: 0, marginBottom: '0.25rem' }}>
+            المسجلون في البوابة
+          </h1>
           <p style={{ fontSize: '0.875rem', color: 'rgba(247, 240, 228, 0.6)', margin: 0 }}>
             بيانات الأشخاص الذين تم مسح تذاكرهم ودخولهم الفعلي لقاعة المؤتمر
           </p>
@@ -252,12 +235,12 @@ export default function ScannedAttendeesPage() {
         </button>
       </div>
 
-      {/* KPI Cards: Total Scanned & Total Ratio */}
+      {/* KPI Cards: Total Scanned & Total Unique Churches */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
         {/* Card 1: Total Scanned at Gate */}
         <div className="glass-card" style={{ padding: '1.25rem', textAlign: 'right' }}>
           <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.35rem' }}>
-            عدد المسجلين المقبولين بالبوابة
+            إجمالي الحضور الفعلي بالبوابة
           </span>
           <div style={{ fontSize: '2.25rem', fontWeight: 900, color: '#fbba33', lineHeight: 1.1 }}>
             {tickets.length.toLocaleString('ar-EG')}
@@ -265,20 +248,14 @@ export default function ScannedAttendeesPage() {
           </div>
         </div>
 
-        {/* Card 2: Attendance Ratio & Progress */}
+        {/* Card 2: Total Unique Churches */}
         <div className="glass-card" style={{ padding: '1.25rem', textAlign: 'right' }}>
           <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.35rem' }}>
-            إجمالي الحضور ونسبة الدخول
+            عدد الكنائس الممثلة بالدخول
           </span>
-          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#34d399', lineHeight: 1.2, marginBottom: '0.5rem' }}>
-            <span>{tickets.length.toLocaleString('ar-EG')}</span>
-            <span style={{ fontSize: '0.9375rem', color: 'rgba(255,255,255,0.5)', margin: '0 0.25rem' }}>من أصل</span>
-            <span>{(totalApprovedCount || tickets.length).toLocaleString('ar-EG')}</span>
-            <span style={{ fontSize: '0.875rem', color: '#fbba33', marginRight: '0.5rem' }}>({attendanceRatio}%)</span>
-          </div>
-          {/* Visual Progress Bar */}
-          <div style={{ width: '100%', height: '0.5rem', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '9999px', overflow: 'hidden' }}>
-            <div style={{ width: `${Math.min(100, Number(attendanceRatio))}%`, height: '100%', background: 'linear-gradient(90deg, #10b981, #34d399)', borderRadius: '9999px', transition: 'width 0.5s ease' }} />
+          <div style={{ fontSize: '2.25rem', fontWeight: 900, color: '#34d399', lineHeight: 1.1 }}>
+            {churchesList.length.toLocaleString('ar-EG')}
+            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginRight: '0.4rem' }}>كنيسة</span>
           </div>
         </div>
       </div>
