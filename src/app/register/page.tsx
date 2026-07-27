@@ -236,12 +236,12 @@ export default function RegisterPage() {
       case 0: // Name
         return (
           <div className="fade-in">
-            <label className="form-label" htmlFor="fullName">الاسم الكامل</label>
+            <label className="form-label" htmlFor="fullName">الاسم ثلاثي على الأقل</label>
             <input
               id="fullName"
               type="text"
               className={`form-input ${errors.fullName ? 'form-input-error' : ''}`}
-              placeholder="أدخل اسمك الكامل"
+              placeholder="مثال: مينا مجدي جرجس"
               value={formData.fullName}
               onChange={(e) => updateField('fullName', e.target.value)}
               autoFocus
