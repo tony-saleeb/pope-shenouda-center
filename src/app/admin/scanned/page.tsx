@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
 
@@ -18,42 +18,93 @@ interface ScannedTicketItem {
 export default function ScannedAttendeesPage() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState<ScannedTicketItem[]>([]);
+  const [totalApprovedCount, setTotalApprovedCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [churchFilter, setChurchFilter] = useState('');
 
+  // 1. Listen to total approved registrants count
   useEffect(() => {
     if (!user) return;
 
-    const q = query(
+    const qApproved = query(
+      collection(db, 'registrants'),
+      where('status', 'in', ['approved', 'auto_approved'])
+    );
+
+    const unsubscribeApproved = onSnapshot(
+      qApproved,
+      (snapshot) => {
+        setTotalApprovedCount(snapshot.size);
+      },
+      (err) => {
+        console.error('Error fetching approved registrants count:', err);
+      }
+    );
+
+    return () => unsubscribeApproved();
+  }, [user]);
+
+  // 2. Real-time listener for scanned tickets
+  useEffect(() => {
+    if (!user) return;
+
+    const qScanned = query(
       collection(db, 'tickets'),
       where('used', '==', true)
     );
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const items: ScannedTicketItem[] = snapshot.docs.map((docSnap) => {
-          const data = docSnap.data();
-          return {
-            id: docSnap.id,
-            registrantId: data.registrantId || docSnap.id,
-            registrantName: data.registrantName || 'زائر',
-            church: data.church || 'غير محدد',
-            phoneNumber: data.phoneNumber || '',
-            usedAt: data.usedAt,
-            usedByUsherId: data.usedByUsherId || 'الماسح الإلكتروني',
-          };
-        });
+    const unsubscribeScanned = onSnapshot(
+      qScanned,
+      async (snapshot) => {
+        const rawTickets = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...(docSnap.data() as any),
+        }));
+
+        // Resolve detailed registrant info (Name, Church, Phone) for each scanned ticket
+        const resolvedItems: ScannedTicketItem[] = await Promise.all(
+          rawTickets.map(async (data: any) => {
+            const regId = data.registrantId || data.id;
+            let name = data.registrantName;
+            let ch = data.church;
+            let phone = data.phoneNumber || '';
+
+            // If name or church is missing/placeholder, fetch directly from registrants collection
+            if (!name || name === 'زائر' || !ch || ch === 'غير محدد' || !phone) {
+              try {
+                const regSnap = await getDoc(doc(db, 'registrants', regId));
+                if (regSnap.exists()) {
+                  const r = regSnap.data();
+                  if (r.fullName) name = r.fullName;
+                  if (r.church) ch = r.church;
+                  if (r.phoneNumber) phone = r.phoneNumber;
+                }
+              } catch (e) {
+                console.error('Error fetching registrant for ticket:', regId, e);
+              }
+            }
+
+            return {
+              id: data.id,
+              registrantId: regId,
+              registrantName: name || 'حاضر بدون اسم',
+              church: ch || 'غير محدد',
+              phoneNumber: phone,
+              usedAt: data.usedAt,
+              usedByUsherId: data.usedByUsherId || 'الماسح الإلكتروني',
+            };
+          })
+        );
 
         // Sort by check-in time descending
-        items.sort((a, b) => {
+        resolvedItems.sort((a, b) => {
           const tA = a.usedAt?.toMillis?.() || a.usedAt?.seconds * 1000 || 0;
           const tB = b.usedAt?.toMillis?.() || b.usedAt?.seconds * 1000 || 0;
           return tB - tA;
         });
 
-        setTickets(items);
+        setTickets(resolvedItems);
         setLoading(false);
       },
       (err) => {
@@ -62,7 +113,7 @@ export default function ScannedAttendeesPage() {
       }
     );
 
-    return () => unsubscribe();
+    return () => unsubscribeScanned();
   }, [user]);
 
   // Unique list of churches for filtering
@@ -106,11 +157,16 @@ export default function ScannedAttendeesPage() {
     }
   };
 
+  // Calculate entry percentage
+  const attendanceRatio = totalApprovedCount > 0
+    ? ((tickets.length / totalApprovedCount) * 100).toFixed(1)
+    : '0';
+
   // Export CSV helper
   const exportCSV = () => {
     if (filteredTickets.length === 0) return;
 
-    const headers = ['#', 'الاسم', 'الكنيسة', 'رقم الموبايل', 'وقت الدخول', 'معرّف التذكرة'];
+    const headers = ['#', 'الاسم الكامل', 'الكنيسة', 'رقم الموبايل', 'وقت الدخول', 'معرّف التذكرة'];
     const rows = filteredTickets.map((t, idx) => [
       idx + 1,
       `"${t.registrantName || ''}"`,
@@ -135,7 +191,7 @@ export default function ScannedAttendeesPage() {
     return (
       <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
         <div className="spinner spinner-lg spinner-gold" style={{ margin: '0 auto 1rem' }} />
-        <p style={{ color: 'rgba(255,255,255,0.6)' }}>جاري تحميل الحضور بالبوابة...</p>
+        <p style={{ color: 'rgba(255,255,255,0.6)' }}>جاري تحميل تفاصيل المسجلين في البوابة...</p>
       </div>
     );
   }
@@ -162,11 +218,11 @@ export default function ScannedAttendeesPage() {
               borderRadius: '9999px',
             }}>
               <span style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', background: '#10b981', animation: 'ping 2s cubic-bezier(0,0,0.2,1) infinite' }} />
-              مباشر
+              تحديث مباشر
             </span>
           </div>
           <p style={{ fontSize: '0.875rem', color: 'rgba(247, 240, 228, 0.6)', margin: 0 }}>
-            قائمة بالأشخاص الذين تم مسح تذاكرهم ودخولهم قاعة المؤتمر بنجاح
+            بيانات الأشخاص الذين تم مسح تذاكرهم ودخولهم الفعلي لقاعة المؤتمر
           </p>
         </div>
 
@@ -196,24 +252,33 @@ export default function ScannedAttendeesPage() {
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+      {/* KPI Cards: Total Scanned & Total Ratio */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
+        {/* Card 1: Total Scanned at Gate */}
         <div className="glass-card" style={{ padding: '1.25rem', textAlign: 'right' }}>
-          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.25rem' }}>
-            إجمالي الحضور بالبوابة
+          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.35rem' }}>
+            عدد المسجلين المقبولين بالبوابة
           </span>
-          <div style={{ fontSize: '2rem', fontWeight: 900, color: '#fbba33' }}>
+          <div style={{ fontSize: '2.25rem', fontWeight: 900, color: '#fbba33', lineHeight: 1.1 }}>
             {tickets.length.toLocaleString('ar-EG')}
-            <span style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.6)', marginRight: '0.35rem' }}>حاضر</span>
+            <span style={{ fontSize: '0.875rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', marginRight: '0.4rem' }}>شخصاً</span>
           </div>
         </div>
 
+        {/* Card 2: Attendance Ratio & Progress */}
         <div className="glass-card" style={{ padding: '1.25rem', textAlign: 'right' }}>
-          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.25rem' }}>
-            آخر عملية دخول
+          <span style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: '0.35rem' }}>
+            إجمالي الحضور ونسبة الدخول
           </span>
-          <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#34d399' }}>
-            {tickets.length > 0 ? formatTime(tickets[0].usedAt) : 'لا يوجد'}
+          <div style={{ fontSize: '1.5rem', fontWeight: 900, color: '#34d399', lineHeight: 1.2, marginBottom: '0.5rem' }}>
+            <span>{tickets.length.toLocaleString('ar-EG')}</span>
+            <span style={{ fontSize: '0.9375rem', color: 'rgba(255,255,255,0.5)', margin: '0 0.25rem' }}>من أصل</span>
+            <span>{(totalApprovedCount || tickets.length).toLocaleString('ar-EG')}</span>
+            <span style={{ fontSize: '0.875rem', color: '#fbba33', marginRight: '0.5rem' }}>({attendanceRatio}%)</span>
+          </div>
+          {/* Visual Progress Bar */}
+          <div style={{ width: '100%', height: '0.5rem', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '9999px', overflow: 'hidden' }}>
+            <div style={{ width: `${Math.min(100, Number(attendanceRatio))}%`, height: '100%', background: 'linear-gradient(90deg, #10b981, #34d399)', borderRadius: '9999px', transition: 'width 0.5s ease' }} />
           </div>
         </div>
       </div>
@@ -224,7 +289,7 @@ export default function ScannedAttendeesPage() {
           <input
             type="text"
             className="form-input"
-            placeholder="بحث بالاسم أو رقم الموبايل..."
+            placeholder="بحث باسم الحاضر أو رقم الموبايل..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{ width: '100%' }}
@@ -250,7 +315,7 @@ export default function ScannedAttendeesPage() {
         )}
       </div>
 
-      {/* Attendees Table */}
+      {/* Scanned Attendees Table */}
       {filteredTickets.length === 0 ? (
         <div className="glass-card" style={{ padding: '3rem 1rem', textAlign: 'center' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem', opacity: 0.5 }}>🎫</div>
@@ -258,7 +323,7 @@ export default function ScannedAttendeesPage() {
             لم يتم تسجيل أي حضور بالبوابة حتى الآن
           </p>
           <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.25rem' }}>
-            عند مسح تذكرة الحاضرين عند المدخل ستظهر بياناتهم هنا فوراً
+            عند مسح تذكرة الحاضرين عند مدخل القاعة ستظهر أسماؤهم وبياناتهم الكاملة هنا فوراً
           </p>
         </div>
       ) : (
@@ -268,8 +333,9 @@ export default function ScannedAttendeesPage() {
               <thead>
                 <tr style={{ background: 'rgba(242, 158, 19, 0.08)', borderBottom: '1px solid rgba(242, 158, 19, 0.2)' }}>
                   <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>#</th>
-                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>الاسم</th>
+                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>اسم الحاضر</th>
                   <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>الكنيسة</th>
+                  <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>رقم الموبايل</th>
                   <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>وقت الدخول</th>
                   <th style={{ padding: '0.875rem 1rem', fontSize: '0.8125rem', color: '#fbba33' }}>الماسح / الخادم</th>
                 </tr>
@@ -291,6 +357,9 @@ export default function ScannedAttendeesPage() {
                     </td>
                     <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: 'rgba(255,255,255,0.8)' }}>
                       {t.church}
+                    </td>
+                    <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'monospace' }} dir="ltr">
+                      {t.phoneNumber || '-'}
                     </td>
                     <td style={{ padding: '0.875rem 1rem', fontSize: '0.875rem', color: '#34d399', fontWeight: 600 }}>
                       {formatTime(t.usedAt)}
