@@ -13,9 +13,11 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/[\s\-\(\)]/g, '');
 }
 
-/** Validate that a name is not empty and has at least 2 characters */
+/** Validate that a name contains at least 3 words (الاسم ثلاثي على الأقل) */
 export function isValidName(name: string): boolean {
-  return name.trim().length >= 2;
+  if (typeof name !== 'string') return false;
+  const words = name.trim().split(/\s+/).filter((w) => w.length > 0);
+  return words.length >= 3 && words.every((w) => w.length >= 2);
 }
 
 /** Check if an amount is within tolerance of the expected amount */
@@ -29,8 +31,8 @@ export function isAmountWithinTolerance(
 
 /** Validation error messages in Arabic */
 export const VALIDATION_MESSAGES = {
-  nameRequired: 'برجاء إدخال الاسم الكامل',
-  nameTooShort: 'الاسم يجب أن يكون حرفين على الأقل',
+  nameRequired: 'برجاء إدخال الاسم ثلاثي على الأقل',
+  nameTooShort: 'يرجى إدخال الاسم ثلاثي على الأقل (مثال: مينا مجدي جرجس)',
   churchRequired: 'برجاء اختيار الكنيسة',
   customChurchRequired: 'برجاء إدخال اسم الكنيسة',
   phoneRequired: 'برجاء إدخال رقم الموبايل',

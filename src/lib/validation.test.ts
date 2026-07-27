@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { safeImageSrc, isValidEgyptianPhone, normalizePhone } from './validation';
+import { safeImageSrc, isValidEgyptianPhone, normalizePhone, isValidName } from './validation';
 
 describe('safeImageSrc', () => {
   it('allows valid base64 data URIs for jpeg, png, and webp', () => {
@@ -49,5 +49,17 @@ describe('isValidEgyptianPhone & normalizePhone', () => {
 
   it('normalizes spaces and hyphens', () => {
     expect(normalizePhone('010 1234-5678')).toBe('01012345678');
+  });
+});
+
+describe('isValidName', () => {
+  it('requires at least 3 words of 2+ characters each', () => {
+    expect(isValidName('مينا مجدي جرجس')).toBe(true);
+    expect(isValidName('مارينا ملاك عازر صبحي')).toBe(true);
+
+    expect(isValidName('مينا')).toBe(false);
+    expect(isValidName('مينا مجدي')).toBe(false);
+    expect(isValidName('أ ب ج')).toBe(false);
+    expect(isValidName('')).toBe(false);
   });
 });
