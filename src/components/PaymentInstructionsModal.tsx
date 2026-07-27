@@ -275,7 +275,7 @@ export default function PaymentInstructionsModal({
           border: '1px solid rgba(242, 158, 19, 0.25)',
           borderRadius: '1.25rem',
           padding: '0.875rem 1rem',
-          marginBottom: '1.5rem',
+          marginBottom: '1rem',
           display: 'flex',
           gap: '0.75rem',
           alignItems: 'flex-start',
@@ -294,6 +294,42 @@ export default function PaymentInstructionsModal({
             <p style={{ fontSize: '0.8125rem', color: 'rgba(247, 240, 228, 0.75)', lineHeight: 1.5, margin: 0 }}>
               احرص على احتفاظك بصورة الإيصال (Screenshot) حيث سيتم رفعها في الخطوة القادمة لإقرار التسجيل.
             </p>
+          </div>
+        </div>
+
+        {/* Receipt Mockup Example */}
+        <div style={{
+          background: 'rgba(255, 255, 255, 0.03)',
+          border: '1px solid rgba(242, 158, 19, 0.25)',
+          borderRadius: '1.25rem',
+          padding: '0.875rem',
+          marginBottom: '1.5rem',
+          textAlign: 'center',
+        }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgba(247, 240, 228, 0.65)', display: 'block', marginBottom: '0.5rem' }}>
+            نموذج إيصال التحويل المقبول (Screenshot):
+          </span>
+          <div style={{
+            position: 'relative',
+            borderRadius: '0.875rem',
+            overflow: 'hidden',
+            border: '1px solid rgba(255, 255, 255, 0.1)',
+            backgroundColor: '#000000',
+            maxHeight: '180px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}>
+            <img
+              src="/assets/mockup.png"
+              alt="نموذج إيصال التحويل المقبول"
+              style={{
+                maxHeight: '180px',
+                width: 'auto',
+                objectFit: 'contain',
+                borderRadius: '0.75rem',
+              }}
+            />
           </div>
         </div>
 
