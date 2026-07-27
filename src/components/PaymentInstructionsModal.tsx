@@ -16,19 +16,65 @@ export default function PaymentInstructionsModal({
   const [copied, setCopied] = useState(false);
   const [isProceeding, setIsProceeding] = useState(false);
 
+  // Reset internal states whenever modal closes or opens
+  React.useEffect(() => {
+    if (!isOpen) {
+      setIsProceeding(false);
+      setCopied(false);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const handleCopyPhone = () => {
-    if (typeof window !== 'undefined') {
-      navigator.clipboard.writeText('01222572676');
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
+    if (typeof window === 'undefined') return;
+
+    const targetNumber = '01222572676';
+
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard
+        .writeText(targetNumber)
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 3000);
+        })
+        .catch((err) => {
+          console.error('Clipboard API failed, attempting fallback:', err);
+          fallbackCopy(targetNumber);
+        });
+    } else {
+      fallbackCopy(targetNumber);
     }
   };
 
-  const handleProceed = () => {
+  const fallbackCopy = (text: string) => {
+    try {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.opacity = '0';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      if (successful) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 3000);
+      }
+    } catch (err) {
+      console.error('Fallback copy failed:', err);
+    }
+  };
+
+  const handleProceed = async () => {
     setIsProceeding(true);
-    onProceed();
+    try {
+      await Promise.resolve(onProceed());
+    } catch (err) {
+      console.error('Error proceeding to registration:', err);
+      setIsProceeding(false);
+    }
   };
 
   return (
