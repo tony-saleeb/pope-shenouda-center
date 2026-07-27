@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
@@ -18,34 +18,14 @@ interface ScannedTicketItem {
 export default function ScannedAttendeesPage() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState<ScannedTicketItem[]>([]);
-  const [totalApprovedCount, setTotalApprovedCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [churchFilter, setChurchFilter] = useState('');
 
-  // 1. Listen to total approved registrants count
-  useEffect(() => {
-    if (!user) return;
+  // Cache registrant info by registrantId to avoid N+1 Firestore reads on every snapshot
+  const registrantsCacheRef = useRef<Map<string, { fullName: string; church: string; phoneNumber: string }>>(new Map());
 
-    const qApproved = query(
-      collection(db, 'registrants'),
-      where('status', 'in', ['approved', 'auto_approved'])
-    );
-
-    const unsubscribeApproved = onSnapshot(
-      qApproved,
-      (snapshot) => {
-        setTotalApprovedCount(snapshot.size);
-      },
-      (err) => {
-        console.error('Error fetching approved registrants count:', err);
-      }
-    );
-
-    return () => unsubscribeApproved();
-  }, [user]);
-
-  // 2. Real-time listener for scanned tickets
+  // Real-time listener for scanned tickets
   useEffect(() => {
     if (!user) return;
 
@@ -62,7 +42,7 @@ export default function ScannedAttendeesPage() {
           ...(docSnap.data() as any),
         }));
 
-        // Resolve detailed registrant info (Name, Church, Phone) for each scanned ticket
+        // Resolve detailed registrant info (Name, Church, Phone) for each scanned ticket using cache
         const resolvedItems: ScannedTicketItem[] = await Promise.all(
           rawTickets.map(async (data: any) => {
             const regId = data.registrantId || data.id;
@@ -70,18 +50,34 @@ export default function ScannedAttendeesPage() {
             let ch = data.church;
             let phone = data.phoneNumber || '';
 
-            // If name or church is missing/placeholder, fetch directly from registrants collection
-            if (!name || name === 'زائر' || !ch || ch === 'غير محدد' || !phone) {
-              try {
-                const regSnap = await getDoc(doc(db, 'registrants', regId));
-                if (regSnap.exists()) {
-                  const r = regSnap.data();
-                  if (r.fullName) name = r.fullName;
-                  if (r.church) ch = r.church;
-                  if (r.phoneNumber) phone = r.phoneNumber;
+            const isMissingData = !name || name === 'زائر' || !ch || ch === 'غير محدد' || !phone;
+
+            if (isMissingData) {
+              // Check memory cache first to avoid N+1 Firestore calls
+              const cached = registrantsCacheRef.current.get(regId);
+              if (cached) {
+                name = cached.fullName || name;
+                ch = cached.church || ch;
+                phone = cached.phoneNumber || phone;
+              } else {
+                try {
+                  const regSnap = await getDoc(doc(db, 'registrants', regId));
+                  if (regSnap.exists()) {
+                    const r = regSnap.data();
+                    const fetchedInfo = {
+                      fullName: r.fullName || '',
+                      church: r.church || '',
+                      phoneNumber: r.phoneNumber || '',
+                    };
+                    registrantsCacheRef.current.set(regId, fetchedInfo);
+
+                    if (fetchedInfo.fullName) name = fetchedInfo.fullName;
+                    if (fetchedInfo.church) ch = fetchedInfo.church;
+                    if (fetchedInfo.phoneNumber) phone = fetchedInfo.phoneNumber;
+                  }
+                } catch (e) {
+                  console.error('Error fetching registrant for ticket:', regId, e);
                 }
-              } catch (e) {
-                console.error('Error fetching registrant for ticket:', regId, e);
               }
             }
 
@@ -156,11 +152,6 @@ export default function ScannedAttendeesPage() {
       return 'غير محدد';
     }
   };
-
-  // Calculate entry percentage
-  const attendanceRatio = totalApprovedCount > 0
-    ? ((tickets.length / totalApprovedCount) * 100).toFixed(1)
-    : '0';
 
   // Export CSV helper
   const exportCSV = () => {
