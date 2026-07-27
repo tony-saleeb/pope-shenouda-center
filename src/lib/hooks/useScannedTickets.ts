@@ -18,6 +18,7 @@ const SCANNED_TICKETS_LIMIT = 300;
 export const PLACEHOLDER_GUEST_NAME = 'زائر';
 export const PLACEHOLDER_UNKNOWN_CHURCH = 'غير محدد';
 export const PLACEHOLDER_UNNAMED_ATTENDEE = 'حاضر بدون اسم';
+export const PLACEHOLDER_UNKNOWN_TIME = 'غير محدد';
 
 interface CachedRegistrantInfo {
   fullName: string;

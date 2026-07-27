@@ -7,6 +7,7 @@ import {
   useScannedTickets,
   ScannedTicketItem,
   PLACEHOLDER_UNKNOWN_CHURCH,
+  PLACEHOLDER_UNKNOWN_TIME,
 } from '@/lib/hooks/useScannedTickets';
 
 /**
@@ -176,7 +177,7 @@ function escapeCsvField(val: string | number | null | undefined): string {
  * Format Timestamp helper safely.
  */
 function formatTime(ts?: Timestamp | null): string {
-  if (!ts) return PLACEHOLDER_UNKNOWN_CHURCH;
+  if (!ts) return PLACEHOLDER_UNKNOWN_TIME;
   try {
     const date = ts.toDate ? ts.toDate() : new Date((ts as any).seconds * 1000);
     return new Intl.DateTimeFormat('ar-EG', {
@@ -186,7 +187,7 @@ function formatTime(ts?: Timestamp | null): string {
       hour12: true,
     }).format(date);
   } catch {
-    return PLACEHOLDER_UNKNOWN_CHURCH;
+    return PLACEHOLDER_UNKNOWN_TIME;
   }
 }
 
