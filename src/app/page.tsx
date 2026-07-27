@@ -111,11 +111,6 @@ export default function HomePage() {
             <span>عرض تذكرتي / متابعة حالة الطلب</span>
           </Link>
         </div>
-
-        {/* Security & Support Note */}
-        <div className="glass-card" style={{ padding: '1rem 1.25rem', fontSize: '0.8125rem', color: 'rgba(255,255,255,0.45)', textAlign: 'center' }}>
-          🔒 نظام التسجيل مؤمّن بالكامل — سيتم التحقق من إيصالك تلقائياً وإصدار تذكرتك فوراً
-        </div>
       </div>
     </main>
 
