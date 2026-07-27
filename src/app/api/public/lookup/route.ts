@@ -69,25 +69,43 @@ export async function POST(request: NextRequest) {
     const db = getAdminDb();
     const phoneSnap = await db.collection('phoneIndex').doc(normalized).get();
 
-    if (phoneSnap.exists) {
-      const registrantId = phoneSnap.data()?.registrantId;
-      console.log(`[Public Lookup] Found registrant ${registrantId} for phone ${normalized}`);
-
-      if (registrantId) {
-        try {
-          await sendAutomatedWhatsAppTicket(normalized, registrantId);
-        } catch (sendErr) {
-          console.error(`[Public Lookup] Failed sending WhatsApp ticket for ${registrantId}:`, sendErr);
-        }
-      }
-    } else {
+    if (!phoneSnap.exists) {
       console.log(`[Public Lookup] Phone ${normalized} not found in phoneIndex`);
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Not found',
+          messageAr: 'عفواً، هذا الرقم غير مسجّل لدينا. يرجى التأكد من الرقم الذي قمت بالتسجيل به، أو قم بالتسجيل الآن.',
+        },
+        { status: 404 }
+      );
     }
 
-    // 4. Anti-enumeration: ALWAYS return identical 200 response
+    const registrantId = phoneSnap.data()?.registrantId;
+
+    if (!registrantId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Registrant ID missing',
+          messageAr: 'عفواً، لم نتمكن من العثور على بيانات التذكرة لهذا الرقم.',
+        },
+        { status: 404 }
+      );
+    }
+
+    console.log(`[Public Lookup] Found registrant ${registrantId} for phone ${normalized}`);
+
+    try {
+      await sendAutomatedWhatsAppTicket(normalized, registrantId);
+    } catch (sendErr) {
+      console.error(`[Public Lookup] Failed sending WhatsApp ticket for ${registrantId}:`, sendErr);
+    }
+
     return NextResponse.json({
       success: true,
-      messageAr: ANTI_ENUMERATION_MESSAGE,
+      registrantId,
+      messageAr: 'تم العثور على حسابك بنجاح! تم إرسال رابط التذكرة إلى الواتساب الخاص بك.',
     });
   } catch (error) {
     console.error('[Public Lookup] Error:', error);
