@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, orderBy, limit, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
 
@@ -9,6 +9,8 @@ import { useAuth } from '@/lib/auth/context';
 const CACHE_TTL_MS = 15 * 60 * 1000;
 /** Cleanup interval: 5 minutes in milliseconds */
 const CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+/** Max scanned tickets limit for real-time stream */
+const SCANNED_TICKETS_LIMIT = 300;
 
 interface CachedRegistrantInfo {
   fullName: string;
@@ -27,6 +29,17 @@ interface ScannedTicketItem {
   usedByUsherId?: string;
 }
 
+/**
+ * Properly escapes CSV field values according to RFC 4180.
+ * Doubles any embedded double quotes and wraps the field in double quotes.
+ */
+function escapeCsvField(val: string | number | null | undefined): string {
+  if (val === null || val === undefined) return '""';
+  const str = String(val);
+  const escaped = str.replace(/"/g, '""');
+  return `"${escaped}"`;
+}
+
 export default function ScannedAttendeesPage() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState<ScannedTicketItem[]>([]);
@@ -36,8 +49,10 @@ export default function ScannedAttendeesPage() {
 
   // TTL Cache for registrant details by registrantId to prevent N+1 Firestore reads
   const registrantsCacheRef = useRef<Map<string, CachedRegistrantInfo>>(new Map());
+  // Version counter to prevent out-of-order state updates during fast snapshot emissions
+  const snapshotVersionRef = useRef<number>(0);
 
-  // Automatic periodic garbage collector to sweep expired entries every 5 minutes
+  // Automatic periodic garbage collector to sweep expired entries every 5 minutes and clear on unmount
   useEffect(() => {
     const sweeper = setInterval(() => {
       const now = Date.now();
@@ -48,7 +63,10 @@ export default function ScannedAttendeesPage() {
       }
     }, CLEANUP_INTERVAL_MS);
 
-    return () => clearInterval(sweeper);
+    return () => {
+      clearInterval(sweeper);
+      registrantsCacheRef.current.clear();
+    };
   }, []);
 
   // Real-time listener for scanned tickets
@@ -57,28 +75,34 @@ export default function ScannedAttendeesPage() {
 
     const qScanned = query(
       collection(db, 'tickets'),
-      where('used', '==', true)
+      where('used', '==', true),
+      orderBy('usedAt', 'desc'),
+      limit(SCANNED_TICKETS_LIMIT)
     );
 
     const unsubscribeScanned = onSnapshot(
       qScanned,
       async (snapshot) => {
+        // Track snapshot version to guard against race conditions
+        const currentVersion = ++snapshotVersionRef.current;
+
         const rawTickets = snapshot.docs.map((docSnap) => ({
           id: docSnap.id,
           ...(docSnap.data() as any),
         }));
 
-        // Resolve detailed registrant info (Name, Church, Phone) for each scanned ticket using TTL cache
+        // Resolve detailed registrant info (Name, Church, Phone) for each scanned ticket using TTL cache & negative caching
         const resolvedItems: ScannedTicketItem[] = await Promise.all(
           rawTickets.map(async (data: any) => {
-            const regId = data.registrantId || data.id;
+            const regId = data.registrantId;
             let name = data.registrantName;
             let ch = data.church;
             let phone = data.phoneNumber || '';
 
             const isMissingData = !name || name === 'زائر' || !ch || ch === 'غير محدد' || !phone;
 
-            if (isMissingData) {
+            // Only attempt lookup if registrantId explicitly exists
+            if (isMissingData && regId) {
               const now = Date.now();
               const cached = registrantsCacheRef.current.get(regId);
               const isExpired = cached && now - cached.fetchedAt > CACHE_TTL_MS;
@@ -93,20 +117,21 @@ export default function ScannedAttendeesPage() {
                 }
                 try {
                   const regSnap = await getDoc(doc(db, 'registrants', regId));
-                  if (regSnap.exists()) {
-                    const r = regSnap.data();
-                    const fetchedInfo: CachedRegistrantInfo = {
-                      fullName: r.fullName || '',
-                      church: r.church || '',
-                      phoneNumber: r.phoneNumber || '',
-                      fetchedAt: now,
-                    };
-                    registrantsCacheRef.current.set(regId, fetchedInfo);
+                  const r = regSnap.exists() ? regSnap.data() : null;
 
-                    if (fetchedInfo.fullName) name = fetchedInfo.fullName;
-                    if (fetchedInfo.church) ch = fetchedInfo.church;
-                    if (fetchedInfo.phoneNumber) phone = fetchedInfo.phoneNumber;
-                  }
+                  const fetchedInfo: CachedRegistrantInfo = {
+                    fullName: r?.fullName || name || '',
+                    church: r?.church || ch || '',
+                    phoneNumber: r?.phoneNumber || phone || '',
+                    fetchedAt: now,
+                  };
+
+                  // Cache result (including negative/fallback result to prevent repeated failed lookups)
+                  registrantsCacheRef.current.set(regId, fetchedInfo);
+
+                  if (fetchedInfo.fullName) name = fetchedInfo.fullName;
+                  if (fetchedInfo.church) ch = fetchedInfo.church;
+                  if (fetchedInfo.phoneNumber) phone = fetchedInfo.phoneNumber;
                 } catch (e) {
                   console.error('Error fetching registrant for ticket:', regId, e);
                 }
@@ -115,7 +140,7 @@ export default function ScannedAttendeesPage() {
 
             return {
               id: data.id,
-              registrantId: regId,
+              registrantId: regId || data.id,
               registrantName: name || 'حاضر بدون اسم',
               church: ch || 'غير محدد',
               phoneNumber: phone,
@@ -125,7 +150,12 @@ export default function ScannedAttendeesPage() {
           })
         );
 
-        // Sort by check-in time descending
+        // Discard out-of-order snapshot resolution if a newer snapshot was triggered in the meantime
+        if (currentVersion !== snapshotVersionRef.current) {
+          return;
+        }
+
+        // Ensure order by usedAt descending
         resolvedItems.sort((a, b) => {
           const tA = a.usedAt?.toMillis?.() || a.usedAt?.seconds * 1000 || 0;
           const tB = b.usedAt?.toMillis?.() || b.usedAt?.seconds * 1000 || 0;
@@ -185,21 +215,25 @@ export default function ScannedAttendeesPage() {
     }
   };
 
-  // Export CSV helper
+  // Export CSV helper with proper escaping
   const exportCSV = () => {
     if (filteredTickets.length === 0) return;
 
-    const headers = ['#', 'الاسم الكامل', 'الكنيسة', 'رقم الموبايل', 'وقت الدخول', 'معرّف التذكرة'];
-    const rows = filteredTickets.map((t, idx) => [
-      idx + 1,
-      `"${t.registrantName || ''}"`,
-      `"${t.church || ''}"`,
-      `"${t.phoneNumber || ''}"`,
-      `"${formatTime(t.usedAt)}"`,
-      `"${t.id}"`,
-    ]);
+    const rawHeaders = ['#', 'الاسم الكامل', 'الكنيسة', 'رقم الموبايل', 'وقت الدخول', 'معرّف التذكرة'];
+    const headersLine = rawHeaders.map(escapeCsvField).join(',');
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const rowsLines = filteredTickets.map((t, idx) => {
+      return [
+        escapeCsvField(idx + 1),
+        escapeCsvField(t.registrantName || ''),
+        escapeCsvField(t.church || ''),
+        escapeCsvField(t.phoneNumber || ''),
+        escapeCsvField(formatTime(t.usedAt)),
+        escapeCsvField(t.id),
+      ].join(',');
+    });
+
+    const csvContent = '\uFEFF' + [headersLine, ...rowsLines].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
