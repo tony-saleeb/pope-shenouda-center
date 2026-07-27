@@ -15,6 +15,7 @@ import type { RegistrationFormData } from '@/lib/types';
 import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
+import PaymentInstructionsModal from '@/components/PaymentInstructionsModal';
 
 // ─── Step Indicator ─────────────────────────────────────────────────
 function StepIndicator({ currentStep }: { currentStep: number }) {
@@ -65,6 +66,7 @@ function StepTitle({ step, total }: { step: number; total: number }) {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<RegistrationFormData>({
     fullName: '',
@@ -483,6 +485,17 @@ export default function RegisterPage() {
 
         {/* Card */}
         <div className="glass-card" style={{ padding: '2rem 1.5rem' }}>
+          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+            <button
+              type="button"
+              onClick={() => setShowInstructionsModal(true)}
+              className="btn btn-ghost"
+              style={{ fontSize: '0.8125rem', color: '#fbba33', padding: '0.4rem 0.8rem', background: 'rgba(242, 158, 19, 0.1)', border: '1px solid rgba(242, 158, 19, 0.25)', borderRadius: '0.625rem' }}
+            >
+              💳 تعليمات ورسوم الدفع (400 EGP / InstaPay) ℹ️
+            </button>
+          </div>
+
           {/* Step Title */}
           <StepTitle step={currentStep} total={WIZARD_STEPS.length} />
 
@@ -557,6 +570,12 @@ export default function RegisterPage() {
         </div>
       </div>
     </main>
+
+      <PaymentInstructionsModal
+        isOpen={showInstructionsModal}
+        onClose={() => setShowInstructionsModal(false)}
+        onProceed={() => setShowInstructionsModal(false)}
+      />
     </>
   );
 }

@@ -1,8 +1,16 @@
+'use client';
+
+import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
+import PaymentInstructionsModal from '@/components/PaymentInstructionsModal';
 
 export default function HomePage() {
+  const router = useRouter();
+  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
+
   return (
     <>
       <Header />
@@ -66,16 +74,16 @@ export default function HomePage() {
 
         {/* Primary Action Card */}
         <div style={{ display: 'grid', gap: '1rem', marginBottom: '2.5rem' }}>
-          <Link
-            href="/register"
+          <button
+            onClick={() => setShowInstructionsModal(true)}
             className="btn btn-primary btn-lg btn-full"
             style={{
-              textDecoration: 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.75rem',
               fontSize: '1.25rem',
+              cursor: 'pointer',
             }}
           >
             <span>تسجيل حضور جديد</span>
@@ -83,7 +91,7 @@ export default function HomePage() {
               <line x1="5" y1="12" x2="19" y2="12" />
               <polyline points="12 5 19 12 12 19" />
             </svg>
-          </Link>
+          </button>
 
           <Link
             href="/ticket/lookup"
@@ -110,6 +118,15 @@ export default function HomePage() {
         </div>
       </div>
     </main>
+
+      <PaymentInstructionsModal
+        isOpen={showInstructionsModal}
+        onClose={() => setShowInstructionsModal(false)}
+        onProceed={() => {
+          setShowInstructionsModal(false);
+          router.push('/register');
+        }}
+      />
     </>
   );
 }
