@@ -157,6 +157,9 @@ export async function POST(request: NextRequest) {
         used: true,
         usedAt: FieldValue.serverTimestamp(),
         usedByUsherId: usherId,
+        registrantName,
+        church,
+        phoneNumber: regData?.phoneNumber || ticketData.phoneNumber || '',
       });
 
       return {
