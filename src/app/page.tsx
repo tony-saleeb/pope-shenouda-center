@@ -92,24 +92,6 @@ export default function HomePage() {
               <polyline points="12 5 19 12 12 19" />
             </svg>
           </button>
-
-          <Link
-            href="/ticket/lookup"
-            className="btn btn-ghost btn-lg btn-full"
-            style={{
-              textDecoration: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.75rem',
-            }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <span>عرض تذكرتي / متابعة حالة الطلب</span>
-          </Link>
         </div>
       </div>
     </main>
