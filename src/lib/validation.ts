@@ -2,15 +2,19 @@
  * Egyptian phone number validation and form field helpers.
  */
 
-/** Validate an Egyptian mobile phone number: 01[0125]XXXXXXXX (11 digits) */
-export function isValidEgyptianPhone(phone: string): boolean {
-  const cleaned = phone.replace(/[\s\-\(\)]/g, '');
-  return /^01[0125]\d{8}$/.test(cleaned);
+/** Clean and normalize an Egyptian phone number, converting Eastern Arabic digits to Western digits */
+export function normalizePhone(phone: string): string {
+  if (!phone) return '';
+  const converted = phone
+    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString())
+    .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
+  return converted.replace(/[\s\-\(\)]/g, '');
 }
 
-/** Clean and normalize an Egyptian phone number */
-export function normalizePhone(phone: string): string {
-  return phone.replace(/[\s\-\(\)]/g, '');
+/** Validate an Egyptian mobile phone number: 01[0125]XXXXXXXX (11 digits) */
+export function isValidEgyptianPhone(phone: string): boolean {
+  const cleaned = normalizePhone(phone);
+  return /^01[0125]\d{8}$/.test(cleaned);
 }
 
 /** Validate that a name contains at least 3 words (الاسم ثلاثي على الأقل) */
