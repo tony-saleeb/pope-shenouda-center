@@ -490,9 +490,13 @@ export default function RegisterPage() {
               type="button"
               onClick={() => setShowInstructionsModal(true)}
               className="btn btn-ghost"
-              style={{ fontSize: '0.8125rem', color: '#fbba33', padding: '0.4rem 0.8rem', background: 'rgba(242, 158, 19, 0.1)', border: '1px solid rgba(242, 158, 19, 0.25)', borderRadius: '0.625rem' }}
+              style={{ fontSize: '0.8125rem', color: '#fbba33', padding: '0.4rem 0.8rem', background: 'rgba(242, 158, 19, 0.1)', border: '1px solid rgba(242, 158, 19, 0.25)', borderRadius: '0.625rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
             >
-              💳 تعليمات ورسوم الدفع (400 EGP / InstaPay) ℹ️
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="2" y="5" width="20" height="14" rx="2" />
+                <line x1="2" y1="10" x2="22" y2="10" />
+              </svg>
+              <span>تعليمات ورسوم الدفع (400 EGP / InstaPay)</span>
             </button>
           </div>
 
