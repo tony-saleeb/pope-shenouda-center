@@ -295,22 +295,86 @@ export default function RegisterPage() {
         return (
           <div className="fade-in">
             <label className="form-label" htmlFor="phoneNumber">رقم الموبايل</label>
-            <input
-              id="phoneNumber"
-              type="tel"
-              className={`form-input ${errors.phoneNumber ? 'form-input-error' : ''}`}
-              placeholder="01XXXXXXXXX"
-              value={formData.phoneNumber}
-              onChange={(e) => {
-                updateField('phoneNumber', e.target.value);
-                if (formData.sameAsPhone) {
-                  updateField('whatsappNumber', e.target.value);
-                }
-              }}
-              dir="ltr"
-              style={{ textAlign: 'left' }}
-              inputMode="tel"
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                id="phoneNumber"
+                type="tel"
+                className={`form-input ${errors.phoneNumber ? 'form-input-error' : ''}`}
+                placeholder="01XXXXXXXXX"
+                value={formData.phoneNumber}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData((prev) => ({
+                    ...prev,
+                    phoneNumber: val,
+                    ...(prev.sameAsPhone ? { whatsappNumber: val } : {}),
+                  }));
+                  setErrors((prev) => {
+                    if (!prev.phoneNumber && (!prev.sameAsPhone || !prev.whatsappNumber)) return prev;
+                    const next = { ...prev };
+                    delete next.phoneNumber;
+                    if (prev.sameAsPhone) delete next.whatsappNumber;
+                    return next;
+                  });
+                }}
+                onFocus={(e) => {
+                  const len = e.target.value.length;
+                  e.target.setSelectionRange(len, len);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Backspace') {
+                    const target = e.currentTarget;
+                    if (target.selectionStart === 0 && target.selectionEnd === 0 && target.value.length > 0) {
+                      const len = target.value.length;
+                      target.setSelectionRange(len, len);
+                    }
+                  }
+                }}
+                dir="ltr"
+                style={{ textAlign: 'left', paddingLeft: formData.phoneNumber ? '2.5rem' : '1rem' }}
+                inputMode="tel"
+              />
+
+              {formData.phoneNumber && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      phoneNumber: '',
+                      ...(prev.sameAsPhone ? { whatsappNumber: '' } : {}),
+                    }));
+                    setErrors((prev) => {
+                      const next = { ...prev };
+                      delete next.phoneNumber;
+                      if (prev.sameAsPhone) delete next.whatsappNumber;
+                      return next;
+                    });
+                  }}
+                  title="مسح الرقم"
+                  style={{
+                    position: 'absolute',
+                    left: '0.75rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '1.5rem',
+                    height: '1.5rem',
+                    color: '#ffffff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    fontSize: '0.75rem',
+                    lineHeight: 1,
+                  }}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
             {errors.phoneNumber && <p className="form-error">{errors.phoneNumber}</p>}
 
             {/* WhatsApp toggle */}
