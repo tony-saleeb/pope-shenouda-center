@@ -123,7 +123,6 @@ export default function HomePage() {
         isOpen={showInstructionsModal}
         onClose={() => setShowInstructionsModal(false)}
         onProceed={() => {
-          setShowInstructionsModal(false);
           router.push('/register');
         }}
       />

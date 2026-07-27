@@ -14,6 +14,7 @@ export default function PaymentInstructionsModal({
   onProceed,
 }: PaymentInstructionsModalProps) {
   const [copied, setCopied] = useState(false);
+  const [isProceeding, setIsProceeding] = useState(false);
 
   if (!isOpen) return null;
 
@@ -23,6 +24,11 @@ export default function PaymentInstructionsModal({
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     }
+  };
+
+  const handleProceed = () => {
+    setIsProceeding(true);
+    onProceed();
   };
 
   return (
@@ -346,7 +352,8 @@ export default function PaymentInstructionsModal({
 
         {/* Primary Action Button */}
         <button
-          onClick={onProceed}
+          onClick={handleProceed}
+          disabled={isProceeding}
           style={{
             width: '100%',
             background: 'linear-gradient(135deg, #f29e13, #b3823f)',
@@ -356,7 +363,8 @@ export default function PaymentInstructionsModal({
             color: '#ffffff',
             fontWeight: 800,
             fontSize: '0.9375rem',
-            cursor: 'pointer',
+            cursor: isProceeding ? 'wait' : 'pointer',
+            opacity: isProceeding ? 0.85 : 1,
             boxShadow: '0 6px 20px rgba(242, 158, 19, 0.3)',
             transition: 'all 0.2s ease',
             display: 'flex',
@@ -366,11 +374,20 @@ export default function PaymentInstructionsModal({
             minHeight: '2.875rem',
           }}
         >
-          <span>المتابعة لنموذج التسجيل</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="19" y1="12" x2="5" y2="12" />
-            <polyline points="12 19 5 12 12 5" />
-          </svg>
+          {isProceeding ? (
+            <>
+              <div className="spinner spinner-sm" style={{ borderTopColor: '#ffffff', width: '1.25rem', height: '1.25rem' }} />
+              <span>جاري الانتقال لنموذج التسجيل...</span>
+            </>
+          ) : (
+            <>
+              <span>المتابعة لنموذج التسجيل</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12" />
+                <polyline points="12 19 5 12 12 5" />
+              </svg>
+            </>
+          )}
         </button>
       </div>
     </div>
