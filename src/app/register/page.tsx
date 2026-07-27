@@ -302,14 +302,24 @@ export default function RegisterPage() {
               placeholder="01XXXXXXXXX"
               value={formData.phoneNumber}
               onChange={(e) => {
-                updateField('phoneNumber', e.target.value);
-                if (formData.sameAsPhone) {
-                  updateField('whatsappNumber', e.target.value);
-                }
+                const val = e.target.value;
+                setFormData((prev) => ({
+                  ...prev,
+                  phoneNumber: val,
+                  ...(prev.sameAsPhone ? { whatsappNumber: val } : {}),
+                }));
+                setErrors((prev) => {
+                  if (!prev.phoneNumber && (!prev.sameAsPhone || !prev.whatsappNumber)) return prev;
+                  const next = { ...prev };
+                  delete next.phoneNumber;
+                  if (prev.sameAsPhone) delete next.whatsappNumber;
+                  return next;
+                });
               }}
               dir="ltr"
               style={{ textAlign: 'left' }}
               inputMode="tel"
+              autoFocus
             />
             {errors.phoneNumber && <p className="form-error">{errors.phoneNumber}</p>}
 
