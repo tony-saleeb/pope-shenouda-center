@@ -2,7 +2,9 @@
 
 import { useAuth } from '@/lib/auth/context';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase/client';
 import Link from 'next/link';
 
 interface NavItem {
@@ -84,6 +86,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const pathname = usePathname();
 
+  const [pendingCount, setPendingCount] = useState(0);
+
   useEffect(() => {
     if (!loading) {
       if (pathname === '/admin/login' && user && role === 'admin') {
@@ -93,6 +97,28 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     }
   }, [user, role, loading, router, pathname]);
+
+  // Real-time listener for pending review requests
+  useEffect(() => {
+    if (!user || role !== 'admin') return;
+
+    const q = query(
+      collection(db, 'registrants'),
+      where('status', 'in', ['manual_review', 'pending_verification'])
+    );
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        setPendingCount(snapshot.size);
+      },
+      (err) => {
+        console.error('Error listening to pending review count:', err);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user, role]);
 
   // Don't apply admin wrapper or auth check to /admin/login page
   if (pathname === '/admin/login') {
@@ -174,6 +200,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     key={item.href}
                     href={item.href}
                     style={{
+                      position: 'relative',
                       textDecoration: 'none',
                       padding: '0.45rem 0.75rem',
                       borderRadius: '0.5rem',
@@ -194,6 +221,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   >
                     {item.icon(isActive)}
                     <span>{item.label}</span>
+                    {item.href === '/admin/review' && pendingCount > 0 && (
+                      <span
+                        title={`${pendingCount} طلبات في انتظار المراجعة`}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: '1.125rem',
+                          height: '1.125rem',
+                          padding: '0 0.3rem',
+                          borderRadius: '9999px',
+                          backgroundColor: '#ef4444',
+                          color: '#ffffff',
+                          fontSize: '0.6875rem',
+                          fontWeight: 800,
+                          lineHeight: 1,
+                          boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)',
+                          marginRight: '0.2rem',
+                        }}
+                      >
+                        {pendingCount > 99 ? '99+' : pendingCount}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -293,6 +343,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 key={item.href}
                 href={item.href}
                 style={{
+                  position: 'relative',
                   textDecoration: 'none',
                   display: 'flex',
                   flexDirection: 'column',
@@ -311,6 +362,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <span style={{ fontSize: '0.625rem', fontWeight: isActive ? 700 : 500, whiteSpace: 'nowrap' }}>
                   {item.label}
                 </span>
+                {item.href === '/admin/review' && pendingCount > 0 && (
+                  <span
+                    title={`${pendingCount} طلبات في انتظار المراجعة`}
+                    style={{
+                      position: 'absolute',
+                      top: '0.15rem',
+                      right: 'calc(50% - 1.25rem)',
+                      minWidth: '1rem',
+                      height: '1rem',
+                      padding: '0 0.2rem',
+                      borderRadius: '9999px',
+                      backgroundColor: '#ef4444',
+                      color: '#ffffff',
+                      fontSize: '0.625rem',
+                      fontWeight: 800,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 0 8px rgba(239, 68, 68, 0.8)',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                )}
               </Link>
             );
           })}
