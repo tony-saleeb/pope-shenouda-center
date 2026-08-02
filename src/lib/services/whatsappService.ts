@@ -10,6 +10,7 @@ export function getWhatsAppTicketUrl(registrantId: string, phone: string, baseUr
   const messageText =
     `تم قبول تسجيلك في مؤتمر القرن العاشر بنجاح ✓\n\n` +
     `رابط تذكرتك:\n${ticketUrl}\n\n` +
+    `للانضمام لجروب المؤتمر على واتساب، يرجى طلب الانضمام من خلال الرابط التالي:\nhttps://chat.whatsapp.com/D7ahHKNasSBA7E7XQtBfUX?s=cl&p=i&ilr=4&amv=1\n\n` +
     `يرجى إظهار التذكرة عند الدخول.`;
 
   const encodedText = encodeURIComponent(messageText);
@@ -30,6 +31,7 @@ export async function sendAutomatedWhatsAppTicket(
   const messageText =
     `تم قبول تسجيلك في مؤتمر القرن العاشر بنجاح ✓\n\n` +
     `رابط تذكرتك:\n${ticketUrl}\n\n` +
+    `للانضمام لجروب المؤتمر على واتساب، يرجى طلب الانضمام من خلال الرابط التالي:\nhttps://chat.whatsapp.com/D7ahHKNasSBA7E7XQtBfUX?s=cl&p=i&ilr=4&amv=1\n\n` +
     `يرجى إظهار التذكرة عند الدخول.`;
 
   // 1. Check Green API
