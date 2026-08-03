@@ -25,4 +25,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Do not add comments explaining what you changed — the commit message does that.
 
 ## Definition of done
-Every task ends with: `npx tsc --noEmit` clean, `npx next build` succeeds, and the task's stated acceptance criteria met.
+Every task ends with: `npx tsc --noEmit` clean, `npx next build` succeeds, and the task's stated acceptance criteria met.ه ىثثي

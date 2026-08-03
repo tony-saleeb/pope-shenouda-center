@@ -262,10 +262,10 @@ export default function PaymentInstructionsModal({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.375rem', marginBottom: '0.625rem' }}>
               <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#fbba33', display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
                 <span style={{ width: '0.5rem', height: '0.5rem', borderRadius: '50%', background: '#fbba33', flexShrink: 0 }} />
-                طريقة (2): تحويل على رقم المحفظة
+                طريقة (2): تحويل على رقم انستاباى
               </span>
               <span style={{ fontSize: '0.6875rem', color: 'rgba(255,255,255,0.4)' }}>
-                فودافون كاش / InstaPay
+                InstaPay
               </span>
             </div>
 
