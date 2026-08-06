@@ -11,6 +11,7 @@ import type { Registrant, RegistrantStatus } from '@/lib/types';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
 import { safeImageSrc } from '@/lib/validation';
+import Papa from 'papaparse';
 
 interface RegistrantItem {
   id: string;
@@ -124,6 +125,31 @@ export default function RegistrantsPage() {
     return getWhatsAppTicketUrl(item.id, phone);
   };
 
+  const handleExportCSV = () => {
+    const csvData = filteredItems.map(item => ({
+      'الاسم الكامل': item.data.fullName,
+      'الكنيسة': item.data.church,
+      'رقم الموبايل': item.data.phoneNumber ? `="${item.data.phoneNumber}"` : '',
+      'رقم الواتساب': (item.data.whatsappNumber || item.data.phoneNumber) ? `="${item.data.whatsappNumber || item.data.phoneNumber}"` : '',
+      'حالة الطلب': STATUS_LABELS[item.data.status]?.label || item.data.status,
+      'مرجع الإيصال': item.data.ocrExtractedReference ? `="${item.data.ocrExtractedReference}"` : '',
+      'تاريخ التسجيل': item.data.createdAt?.toDate?.()
+        ? new Date(item.data.createdAt.toDate()).toLocaleDateString('ar-EG')
+        : '',
+    }));
+
+    const csv = Papa.unparse(csvData);
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `registrants_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const filteredItems = searchTerm
     ? items.filter(
         (item) =>
@@ -209,6 +235,35 @@ export default function RegistrantsPage() {
             </option>
           ))}
         </select>
+
+        {/* Export CSV Button */}
+        <button
+          onClick={handleExportCSV}
+          disabled={filteredItems.length === 0}
+          style={{
+            flex: '0 0 auto',
+            padding: '0.625rem 1.25rem',
+            background: 'rgba(16, 185, 129, 0.12)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: '0.5rem',
+            color: '#10b981',
+            fontWeight: 700,
+            fontSize: '0.875rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            cursor: filteredItems.length === 0 ? 'not-allowed' : 'pointer',
+            opacity: filteredItems.length === 0 ? 0.5 : 1,
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          تصدير CSV
+        </button>
       </div>
 
       {/* Delete Confirmation Modal */}
@@ -302,9 +357,19 @@ export default function RegistrantsPage() {
 
       {/* Table Section */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-          <div className="spinner spinner-lg" style={{ margin: '0 auto 1.5rem', borderTopColor: '#fbba33' }} />
-          <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.9375rem' }}>جاري تحميل البيانات...</p>
+        <div className="glass-card" style={{ padding: '0', border: '1px solid rgba(242, 158, 19, 0.2)' }}>
+          <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(242, 158, 19, 0.18)', background: 'rgba(12, 7, 3, 0.7)' }}>
+            <div className="skeleton" style={{ height: '1.5rem', width: '30%', borderRadius: '0.25rem' }} />
+          </div>
+          {[...Array(5)].map((_, i) => (
+            <div key={i} style={{ padding: '1rem 1.25rem', borderBottom: '1px solid rgba(242, 158, 19, 0.08)', display: 'flex', gap: '1rem' }}>
+              <div className="skeleton" style={{ height: '1.25rem', width: '25%', borderRadius: '0.25rem' }} />
+              <div className="skeleton" style={{ height: '1.25rem', width: '20%', borderRadius: '0.25rem' }} />
+              <div className="skeleton" style={{ height: '1.25rem', width: '15%', borderRadius: '0.25rem' }} />
+              <div className="skeleton" style={{ height: '1.25rem', width: '15%', borderRadius: '0.25rem' }} />
+              <div className="skeleton" style={{ height: '1.25rem', width: '15%', borderRadius: '0.25rem' }} />
+            </div>
+          ))}
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="glass-card" style={{ padding: '4rem 2rem', textAlign: 'center', maxWidth: '32rem', margin: '2rem auto' }}>

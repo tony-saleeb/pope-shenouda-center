@@ -18,7 +18,7 @@ export async function extractReceiptData(
 
   const base64Data = Buffer.from(new Uint8Array(imageBuffer)).toString('base64');
 
-  const modelName = process.env.GEMINI_MODEL || 'gemini-1.5-flash';
+  const modelName = process.env.GEMINI_MODEL || 'gemini-3.5-flash';
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
 
   const prompt = `You are analyzing an InstaPay (Egyptian peer-to-peer bank transfer) payment confirmation screenshot. The image may be a direct app screenshot or a photo taken of a phone's screen (which might have glare, moire patterns, skew, or blur).
@@ -79,7 +79,13 @@ Ensure the output is valid JSON. Return ONLY the JSON object.`;
 
     // Parse extracted JSON
     try {
-      const parsed: OcrExtractionResult = JSON.parse(textResponse.trim());
+      let cleaned = textResponse.trim();
+      if (cleaned.startsWith('```json')) {
+        cleaned = cleaned.replace(/^```json/i, '').replace(/```$/, '').trim();
+      } else if (cleaned.startsWith('```')) {
+        cleaned = cleaned.replace(/^```/, '').replace(/```$/, '').trim();
+      }
+      const parsed: OcrExtractionResult = JSON.parse(cleaned);
       return {
         reference_number: parsed.reference_number || null,
         amount: parsed.amount != null ? Number(parsed.amount) : null,

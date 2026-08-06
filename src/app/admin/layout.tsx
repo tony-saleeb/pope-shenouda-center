@@ -175,9 +175,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading) {
     return (
-      <main style={{ position: 'relative', zIndex: 1, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div className="spinner spinner-lg spinner-gold" />
-      </main>
+      <div style={{ minHeight: '100dvh', padding: '1.5rem', background: '#0a0602' }}>
+        <div className="skeleton" style={{ height: '3.75rem', width: '100%', borderRadius: '0.875rem', marginBottom: '2.5rem' }} />
+        <div className="skeleton" style={{ height: '2rem', width: '15rem', marginBottom: '1rem' }} />
+        <div className="skeleton" style={{ height: '1rem', width: '10rem', marginBottom: '2.5rem' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(15rem, 1fr))', gap: '1.25rem' }}>
+          <div className="skeleton skeleton-card" style={{ height: '8rem', borderRadius: '1rem' }} />
+          <div className="skeleton skeleton-card" style={{ height: '8rem', borderRadius: '1rem' }} />
+          <div className="skeleton skeleton-card" style={{ height: '8rem', borderRadius: '1rem' }} />
+        </div>
+      </div>
     );
   }
 
