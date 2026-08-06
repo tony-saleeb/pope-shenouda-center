@@ -1,125 +1,108 @@
 import { getAdminDb } from '@/lib/firebase/admin';
-import { extractReceiptData } from './gemini';
-import { generateQrCodeDataUrl } from '@/lib/qr/generator';
-import { FieldValue, Firestore } from 'firebase-admin/firestore';
+import { processOcrBatch, OcrRequestItem } from './visionApi';
+import { Firestore, FieldValue } from 'firebase-admin/firestore';
 import { signTicket } from '@/lib/qr/hmac';
+import { generateQrCodeDataUrl } from '@/lib/qr/generator';
 
 const AMOUNT_TOLERANCE = 5; // EGP
 
-/**
- * Process a single queued registrant document through the OCR pipeline.
- *
- * 1. Download image
- * 2. Send to Gemini Vision
- * 3. Save extraction results
- * 4. Reconcile against bankTransactions
- * 5. Update registrant status & create ticket if matched
- */
-export async function processRegistrantOcr(registrantId: string): Promise<{
+export async function processRegistrantOcrBatch(registrants: Array<{ id: string; url: string }>): Promise<Array<{
+  id: string;
   success: boolean;
   status: string;
   error?: string;
-}> {
+}>> {
+  if (registrants.length === 0) return [];
+
   const db = getAdminDb();
-  const regRef = db.collection('registrants').doc(registrantId);
+  const results = [];
 
   try {
-    // 1. Mark as processing to prevent concurrent runs
-    await regRef.update({
-      ocrStatus: 'processing',
-    });
-
-    const regSnap = await regRef.get();
-    if (!regSnap.exists) {
-      return { success: false, status: 'failed', error: 'Document not found' };
-    }
-
-    const regData = regSnap.data()!;
-    const screenshotUrl = regData.paymentScreenshotUrl;
-
-    if (!screenshotUrl) {
-      await regRef.update({
-        ocrStatus: 'failed',
-        ocrConfidence: 'failed',
-        status: 'manual_review',
-        adminNotes: 'لم يتم العثور على صورة إيصال الدفع',
+    // 1. Mark all as processing
+    const batch = db.batch();
+    for (const reg of registrants) {
+      batch.update(db.collection('registrants').doc(reg.id), {
+        ocrStatus: 'processing',
       });
-      return { success: false, status: 'failed', error: 'No screenshot URL' };
+    }
+    await batch.commit();
+
+    // 2. Call custom OCR API
+    const ocrResponse = await processOcrBatch(registrants);
+
+    // 3. Process each result
+    for (const result of ocrResponse.results) {
+      const regRef = db.collection('registrants').doc(result.id);
+      
+      try {
+        const updateData: Record<string, unknown> = {
+          ocrStatus: 'done',
+          ocrExtractedReference: result.reference_number || null,
+          ocrExtractedAmount: result.amount || null,
+          ocrExtractedSenderName: result.sender_name || null,
+          ocrConfidence: result.confidence,
+        };
+
+        let status = 'manual_review';
+
+        if (result.confidence === 'failed') {
+          updateData.status = 'manual_review';
+          updateData.adminNotes = `فشل التعرف على الإيصال: ${result.notes}`;
+        } else if (result.confidence === 'high' && result.reference_number) {
+          // 4. Try reconciliation against bankTransactions
+          const matched = await attemptReconciliation(
+            result.id,
+            result.reference_number,
+            result.amount,
+            db
+          );
+
+          if (matched.success) {
+            status = 'auto_approved';
+            updateData.status = 'auto_approved';
+            updateData.verifiedAt = FieldValue.serverTimestamp();
+            updateData.adminNotes = null;
+          } else {
+            updateData.status = 'manual_review';
+            updateData.adminNotes = matched.reason || null;
+          }
+        } else {
+          updateData.status = 'manual_review';
+          updateData.adminNotes = result.notes || null;
+        }
+
+        await regRef.update(updateData);
+        results.push({ id: result.id, success: true, status });
+      } catch (err) {
+        console.error(`Failed to process result for ${result.id}:`, err);
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        await regRef.update({
+          ocrStatus: 'failed',
+          status: 'manual_review',
+          adminNotes: `خطأ في المعالجة التلقائية: ${errorMsg}`,
+        });
+        results.push({ id: result.id, success: false, status: 'failed', error: errorMsg });
+      }
     }
 
-    // 2. Obtain image buffer (from Base64 Data URI or HTTP URL)
-    let buffer: Buffer;
-    let contentType = 'image/jpeg';
-
-    if (screenshotUrl.startsWith('data:')) {
-      const matches = screenshotUrl.match(/^data:(.+);base64,(.+)$/);
-      if (matches) {
-        contentType = matches[1];
-        buffer = Buffer.from(matches[2], 'base64');
-      } else {
-        throw new Error('Invalid base64 data URI format');
-      }
-    } else {
-      const response = await fetch(screenshotUrl);
-      if (!response.ok) {
-        throw new Error(`Failed to download image (HTTP ${response.status})`);
-      }
-      contentType = response.headers.get('content-type') || 'image/jpeg';
-      const arrayBuffer = await response.arrayBuffer();
-      buffer = Buffer.from(arrayBuffer);
-    }
-
-    // 3. Extract data via Gemini
-    const ocrResult = await extractReceiptData(buffer, contentType);
-
-    const updateData: Record<string, unknown> = {
-      ocrStatus: 'done',
-      ocrExtractedReference: ocrResult.reference_number || null,
-      ocrExtractedAmount: ocrResult.amount || null,
-      ocrExtractedSenderName: ocrResult.sender_name || null,
-      ocrConfidence: ocrResult.confidence,
-    };
-
-    let status = 'manual_review';
-
-    if (ocrResult.confidence === 'failed') {
-      updateData.status = 'manual_review';
-      updateData.adminNotes = `فشل التعرف على الإيصال: ${ocrResult.notes}`;
-    } else if (ocrResult.confidence === 'high' && ocrResult.reference_number) {
-      // 4. Try reconciliation against bankTransactions
-      const matched = await attemptReconciliation(
-        registrantId,
-        ocrResult.reference_number,
-        ocrResult.amount,
-        db
-      );
-
-      if (matched.success) {
-        status = 'auto_approved';
-        updateData.status = 'auto_approved';
-        updateData.verifiedAt = FieldValue.serverTimestamp();
-      } else {
-        updateData.status = 'manual_review';
-        updateData.adminNotes = matched.reason || 'بانتظار مطابقة كشف الحساب البنكي';
-      }
-    } else {
-      updateData.status = 'manual_review';
-      updateData.adminNotes = ocrResult.notes || 'جودة الصورة منخفضة، تتطلب مراجعة يدوية';
-    }
-
-    await regRef.update(updateData);
-    return { success: true, status };
+    return results;
   } catch (error) {
-    console.error(`OCR processing failed for ${registrantId}:`, error);
-
+    console.error(`Batch OCR processing failed:`, error);
+    
+    // Revert all to failed
     const errorMsg = error instanceof Error ? error.message : String(error);
-    await regRef.update({
-      ocrStatus: 'failed',
-      status: 'manual_review',
-      adminNotes: `خطأ في المعالجة التلقائية: ${errorMsg}`,
-    });
-
-    return { success: false, status: 'failed', error: errorMsg };
+    const failBatch = db.batch();
+    for (const reg of registrants) {
+      failBatch.update(db.collection('registrants').doc(reg.id), {
+        ocrStatus: 'failed',
+        status: 'manual_review',
+        adminNotes: `فشل استدعاء API الخارجي: ${errorMsg}`,
+      });
+      results.push({ id: reg.id, success: false, status: 'failed', error: errorMsg });
+    }
+    await failBatch.commit();
+    
+    return results;
   }
 }
 
@@ -137,7 +120,7 @@ async function attemptReconciliation(
   const txSnap = await txRef.get();
 
   if (!txSnap.exists) {
-    return { success: false, reason: 'لم يتم العثور على المعاملة في كشف الحساب بعد' };
+    return { success: false };
   }
 
   const txData = txSnap.data()!;
