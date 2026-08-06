@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { processRegistrantOcr } from '@/lib/ocr/processor';
+import { processRegistrantOcrBatch } from '@/lib/ocr/processor';
 import { getCronSecret } from '@/lib/env';
 
 /** Extend max execution duration for Vercel functions (12s throttles + downloads + vision API). */
 export const maxDuration = 60;
 
-// Limit the batch size to respect free-tier rate limits
-const BATCH_SIZE = 5;
-
-// Throttle delay between model calls (in milliseconds)
-const THROTTLE_DELAY = 3000;
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// Limit the batch size for the external API
+const BATCH_SIZE = 10;
 
 /**
  * Constant-time bearer token authorization.
@@ -50,7 +45,6 @@ export async function GET(request: NextRequest) {
     const snapshot = await db
       .collection('registrants')
       .where('ocrStatus', '==', 'queued')
-      .orderBy('createdAt', 'asc')
       .limit(BATCH_SIZE)
       .get();
 
@@ -61,22 +55,26 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const results: Array<{ id: string; success: boolean; status: string; error?: string }> = [];
-
+    const registrantsBatch: Array<{ id: string; url: string }> = [];
     for (const doc of snapshot.docs) {
-      const registrantId = doc.id;
-      console.log(`[Cron OCR] Processing registrant: ${registrantId}`);
+      const data = doc.data();
+      if (data.paymentScreenshotUrl) {
+        registrantsBatch.push({ id: doc.id, url: data.paymentScreenshotUrl });
+      } else {
+        // Mark as failed immediately if no URL
+        await db.collection('registrants').doc(doc.id).update({
+          ocrStatus: 'failed',
+          ocrConfidence: 'failed',
+          status: 'manual_review',
+          adminNotes: 'لم يتم العثور على صورة إيصال الدفع',
+        });
+      }
+    }
 
-      const result = await processRegistrantOcr(registrantId);
-      results.push({
-        id: registrantId,
-        success: result.success,
-        status: result.status,
-        error: result.error,
-      });
-
-      // Throttle to stay within Gemini free tier per-minute limits
-      await sleep(THROTTLE_DELAY);
+    let results: Array<{ id: string; success: boolean; status: string; error?: string }> = [];
+    if (registrantsBatch.length > 0) {
+      console.log(`[Cron OCR] Processing batch of ${registrantsBatch.length} registrants...`);
+      results = await processRegistrantOcrBatch(registrantsBatch);
     }
 
     return NextResponse.json({

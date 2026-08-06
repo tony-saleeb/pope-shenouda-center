@@ -277,9 +277,10 @@ export default function ReviewPage() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem 1rem' }}>
-          <div className="spinner spinner-lg" style={{ margin: '0 auto 1.5rem', borderTopColor: '#fbba33' }} />
-          <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.9375rem' }}>جاري تحميل الطلبات...</p>
+        <div style={{ display: 'grid', gap: '1.25rem' }}>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="glass-card skeleton" style={{ height: '14rem', border: '1px solid rgba(242, 158, 19, 0.2)' }} />
+          ))}
         </div>
       ) : items.length === 0 ? (
         /* Empty State */

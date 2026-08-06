@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { collection, query, where, getCountFromServer } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts';
 interface Stats {
   total: number;
   pending: number;
@@ -240,6 +240,52 @@ export default function AdminDashboard() {
             )}
           </div>
         ))}
+      </div>
+
+      {/* Analytics Chart */}
+      <div className="glass-card" style={{ marginTop: '2.5rem', padding: '2rem', border: '1px solid rgba(242, 158, 19, 0.2)', background: 'rgba(31, 19, 6, 0.65)' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '1.5rem' }}>
+          توزيع حالات التسجيل
+        </h2>
+        {loading ? (
+          <div className="skeleton" style={{ width: '100%', height: '300px', borderRadius: '0.75rem' }} />
+        ) : (
+          <div style={{ width: '100%', height: '300px' }} dir="ltr">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={[
+                  { name: 'تمت الموافقة', value: stats.approved, fill: '#10b981' },
+                  { name: 'تحتاج مراجعة', value: stats.review, fill: '#3b82f6' },
+                  { name: 'قيد التحقق', value: stats.pending, fill: '#f59e0b' },
+                  { name: 'مرفوضة', value: stats.rejected, fill: '#ef4444' },
+                ]}
+                margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
+                barSize={40}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="name" stroke="rgba(247, 240, 228, 0.5)" tick={{ fill: 'rgba(247, 240, 228, 0.7)', fontSize: 13 }} tickLine={false} axisLine={false} />
+                <YAxis stroke="rgba(247, 240, 228, 0.5)" tick={{ fill: 'rgba(247, 240, 228, 0.7)', fontSize: 13 }} tickLine={false} axisLine={false} />
+                <Tooltip
+                  cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                  contentStyle={{ backgroundColor: 'rgba(19, 12, 5, 0.9)', borderColor: 'rgba(242, 158, 19, 0.3)', borderRadius: '0.5rem', color: '#f7f0e4', direction: 'rtl' }}
+                  itemStyle={{ color: '#f7f0e4' }}
+                />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                  {
+                    [
+                      { fill: '#10b981' },
+                      { fill: '#3b82f6' },
+                      { fill: '#f59e0b' },
+                      { fill: '#ef4444' }
+                    ].map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))
+                  }
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
     </div>
   );
