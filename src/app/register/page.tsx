@@ -1,21 +1,66 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { doc, getDoc, runTransaction, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
-import { uploadPaymentScreenshot, UploadProgress } from '@/lib/firebase/storage';
+import { compressPaymentScreenshot, UploadProgress } from '@/lib/firebase/storage';
 import {
   isValidName,
   isValidEgyptianPhone,
   normalizePhone,
   VALIDATION_MESSAGES,
 } from '@/lib/validation';
-import { CHURCHES, WIZARD_STEPS } from '@/lib/types';
+import { WIZARD_STEPS } from '@/lib/types';
 import type { RegistrationFormData } from '@/lib/types';
-import { v4 as uuidv4 } from 'uuid';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import PaymentInstructionsModal from '@/components/PaymentInstructionsModal';
+
+const NETWORK_ERROR_MESSAGE = 'تعذّر الاتصال بالخدمة، تأكد من الإنترنت وحاول مرة أخرى';
+
+interface RegisterResponse {
+  registrantId?: string;
+  messageAr?: string;
+}
+
+/**
+ * POST the registration to /api/register.
+ * Uses XMLHttpRequest so the receipt upload can report real progress.
+ * Never throws: transport failures come back as status 0.
+ */
+function postRegistration(
+  body: FormData,
+  onProgress: (progress: UploadProgress | null) => void
+): Promise<{ status: number; payload: RegisterResponse | null }> {
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/register');
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable) return;
+      onProgress({
+        progress: Math.min(99, Math.round((event.loaded / event.total) * 100)),
+        bytesTransferred: event.loaded,
+        totalBytes: event.total,
+      });
+    };
+
+    xhr.onload = () => {
+      let payload: RegisterResponse | null = null;
+      try {
+        payload = JSON.parse(xhr.responseText) as RegisterResponse;
+      } catch {
+        payload = null;
+      }
+      resolve({ status: xhr.status, payload });
+    };
+
+    xhr.onerror = () => resolve({ status: 0, payload: null });
+    xhr.ontimeout = () => resolve({ status: 0, payload: null });
+
+    xhr.send(body);
+  });
+}
 
 // ─── Step Indicator ─────────────────────────────────────────────────
 function StepIndicator({ currentStep }: { currentStep: number }) {
@@ -188,69 +233,55 @@ export default function RegisterPage() {
     if (!formData.paymentScreenshot) return;
 
     setIsSubmitting(true);
-    const registrantId = uuidv4();
     const phone = normalizePhone(formData.phoneNumber);
     const whatsapp = formData.sameAsPhone
       ? phone
       : normalizePhone(formData.whatsappNumber);
-    const churchName = formData.church.trim();
 
-    try {
-      // Step 1: Upload screenshot directly to Firebase Storage
-      const screenshotUrl = await uploadPaymentScreenshot(
-        formData.paymentScreenshot,
-        registrantId,
-        setUploadProgress
-      );
-
-      // Step 2: Transactional write — registrant + phoneIndex atomically
-      await runTransaction(db, async (transaction) => {
-        // Check if phone is already registered
-        const phoneRef = doc(db, 'phoneIndex', phone);
-        const phoneDoc = await transaction.get(phoneRef);
-
-        if (phoneDoc.exists()) {
-          throw new Error('DUPLICATE_PHONE');
-        }
-
-        // Create registrant document
-        const registrantRef = doc(db, 'registrants', registrantId);
-        transaction.set(registrantRef, {
-          fullName: formData.fullName.trim(),
-          phoneNumber: phone,
-          whatsappNumber: whatsapp,
-          church: churchName,
-          paymentScreenshotUrl: screenshotUrl,
-          status: 'pending_verification',
-          ocrStatus: 'queued',
-          ocrExtractedReference: null,
-          ocrExtractedAmount: null,
-          ocrExtractedSenderName: null,
-          ocrConfidence: null,
-          adminNotes: null,
-          createdAt: serverTimestamp(),
-          verifiedAt: null,
-        });
-
-        // Create phone index document (duplicate guard)
-        transaction.set(phoneRef, {
-          registrantId,
-        });
-      });
-
-      // Success — redirect to status page
-      router.push(`/status/${registrantId}`);
-    } catch (error: unknown) {
+    const abort = (field: 'submit' | 'phoneNumber' | 'paymentScreenshot', message: string) => {
       setIsSubmitting(false);
       setUploadProgress(null);
+      setErrors({ [field]: message });
+    };
 
-      if (error instanceof Error && error.message === 'DUPLICATE_PHONE') {
-        setErrors({ phoneNumber: VALIDATION_MESSAGES.duplicatePhone });
-        setCurrentStep(2); // Go back to phone step
-      } else {
-        setErrors({ submit: VALIDATION_MESSAGES.genericError });
-      }
+    let compressed: Blob;
+    try {
+      compressed = await compressPaymentScreenshot(formData.paymentScreenshot);
+    } catch (error: unknown) {
+      abort(
+        'paymentScreenshot',
+        error instanceof Error && error.message ? error.message : VALIDATION_MESSAGES.uploadFailed
+      );
+      return;
     }
+
+    const body = new FormData();
+    body.append('fullName', formData.fullName.trim());
+    body.append('church', formData.church.trim());
+    body.append('phoneNumber', phone);
+    body.append('whatsappNumber', whatsapp);
+    body.append('screenshot', compressed, 'receipt.jpg');
+
+    const { status, payload } = await postRegistration(body, setUploadProgress);
+
+    if (status === 409) {
+      abort('phoneNumber', payload?.messageAr ?? VALIDATION_MESSAGES.duplicatePhone);
+      setCurrentStep(2); // Go back to phone step
+      return;
+    }
+
+    if (status === 0) {
+      abort('submit', NETWORK_ERROR_MESSAGE);
+      return;
+    }
+
+    if (status !== 200 || !payload?.registrantId) {
+      abort('submit', payload?.messageAr ?? VALIDATION_MESSAGES.genericError);
+      return;
+    }
+
+    // Success — redirect to status page
+    router.push(`/status/${payload.registrantId}`);
   };
 
   // ─── Render Steps ────────────────────────────────────────────────
