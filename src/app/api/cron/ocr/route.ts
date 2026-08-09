@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { processRegistrantOcrBatch } from '@/lib/ocr/processor';
+import { isAdminDecided, processRegistrantOcrBatch } from '@/lib/ocr/processor';
 import { getCronSecret } from '@/lib/env';
 
 /** Extend max execution duration for Vercel functions (12s throttles + downloads + vision API). */
@@ -58,7 +58,10 @@ export async function GET(request: NextRequest) {
     const registrantsBatch: Array<{ id: string; url: string }> = [];
     for (const doc of snapshot.docs) {
       const data = doc.data();
-      if (data.paymentScreenshotUrl) {
+      if (isAdminDecided(data.status)) {
+        // Already ruled on — drop it from the queue without touching the decision.
+        await db.collection('registrants').doc(doc.id).update({ ocrStatus: 'skipped' });
+      } else if (data.paymentScreenshotUrl) {
         registrantsBatch.push({ id: doc.id, url: data.paymentScreenshotUrl });
       } else {
         // Mark as failed immediately if no URL

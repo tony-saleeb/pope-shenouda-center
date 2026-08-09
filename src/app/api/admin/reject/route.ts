@@ -24,10 +24,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Registrant not found' }, { status: 404 });
     }
 
+    // ocrStatus leaves the queue so the nightly OCR run cannot revisit this decision.
     await registrantRef.update({
       status: 'rejected',
       verifiedAt: FieldValue.serverTimestamp(),
       adminNotes: reason || 'Rejected by admin',
+      ocrStatus: 'skipped',
     });
 
     return NextResponse.json({

@@ -9,7 +9,8 @@ export type RegistrantStatus =
   | 'rejected';
 
 export type OcrConfidence = 'high' | 'low' | 'failed';
-export type OcrStatus = 'queued' | 'processing' | 'done' | 'failed';
+/** `skipped` means an admin ruled on the registrant, so OCR was deliberately bypassed. */
+export type OcrStatus = 'queued' | 'processing' | 'done' | 'failed' | 'skipped';
 
 export interface Registrant {
   fullName: string;
