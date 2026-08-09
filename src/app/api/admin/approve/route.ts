@@ -30,10 +30,12 @@ export async function POST(request: NextRequest) {
 
     const regData = regSnap.data()!;
 
+    // ocrStatus leaves the queue so the nightly OCR run cannot revisit this decision.
     await registrantRef.update({
       status: 'approved',
       verifiedAt: FieldValue.serverTimestamp(),
       adminNotes: notes || null,
+      ocrStatus: 'skipped',
     });
 
     // Generate ticket QR code
