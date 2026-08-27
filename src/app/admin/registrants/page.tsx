@@ -1,21 +1,24 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import {
-  collection, query, orderBy, limit, getDocs,
-  startAfter, where, QueryDocumentSnapshot,
-} from 'firebase/firestore';
+import { useEffect, useState, useMemo } from 'react';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
-import type { Registrant, RegistrantStatus } from '@/lib/types';
+import type { RegistrantStatus } from '@/lib/types';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
-import { safeImageSrc } from '@/lib/validation';
+import { matchesAdminSearch, safeImageSrc } from '@/lib/validation';
 import Papa from 'papaparse';
 
 interface RegistrantItem {
   id: string;
-  data: Registrant;
+  fullName: string;
+  phoneNumber: string;
+  whatsappNumber: string;
+  church: string;
+  status: RegistrantStatus;
+  ocrExtractedReference: string | null;
+  createdAt: string | null;
 }
 
 const STATUS_LABELS: Record<RegistrantStatus, { label: string; className: string }> = {
@@ -39,57 +42,51 @@ export default function RegistrantsPage() {
   const { user } = useAuth();
   const [items, setItems] = useState<RegistrantItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [statusFilter, setStatusFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
-  const [hasMore, setHasMore] = useState(true);
   const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [selectedImageModal, setSelectedImageModal] = useState<{ url: string; name?: string } | null>(null);
-  const PAGE_SIZE = 25;
-
-  const fetchItems = useCallback(async (after?: QueryDocumentSnapshot) => {
-    try {
-      const constraints = [];
-      if (statusFilter) {
-        constraints.push(where('status', '==', statusFilter));
-      }
-      constraints.push(orderBy('createdAt', 'desc'));
-      constraints.push(limit(PAGE_SIZE));
-
-      if (after) {
-        constraints.push(startAfter(after));
-      }
-
-      const q = query(collection(db, 'registrants'), ...constraints);
-      const snapshot = await getDocs(q);
-
-      const newItems = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        data: doc.data() as Registrant,
-      }));
-
-      if (after) {
-        setItems((prev) => [...prev, ...newItems]);
-      } else {
-        setItems(newItems);
-      }
-
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === PAGE_SIZE);
-    } catch (error) {
-      console.error('Error fetching registrants:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [statusFilter]);
+  const [screenshotLoadingId, setScreenshotLoadingId] = useState<string | null>(null);
 
   useEffect(() => {
-    setLoading(true);
-    setItems([]);
-    setLastDoc(null);
-    fetchItems();
-  }, [statusFilter, fetchItems]);
+    if (!user) return;
+
+    const currentUser = user;
+    let cancelled = false;
+
+    async function loadAll() {
+      setLoading(true);
+      setLoadError(false);
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await fetch('/api/admin/registrants', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error('list_failed');
+        }
+        const payload = (await response.json()) as { items?: RegistrantItem[] };
+        if (!cancelled) {
+          setItems(Array.isArray(payload.items) ? payload.items : []);
+        }
+      } catch (error) {
+        console.error('Error fetching registrants:', error);
+        if (!cancelled) {
+          setLoadError(true);
+          setItems([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadAll();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleDelete = async (registrantId: string) => {
     if (!user) return;
@@ -121,20 +118,48 @@ export default function RegistrantsPage() {
   };
 
   const getWhatsAppUrl = (item: RegistrantItem) => {
-    const phone = item.data.whatsappNumber || item.data.phoneNumber || '';
+    const phone = item.whatsappNumber || item.phoneNumber || '';
     return getWhatsAppTicketUrl(item.id, phone);
   };
 
+  const openScreenshot = async (item: RegistrantItem) => {
+    setScreenshotLoadingId(item.id);
+    try {
+      const snap = await getDoc(doc(db, 'registrants', item.id));
+      const url = snap.exists() ? safeImageSrc(snap.data()?.paymentScreenshotUrl) : null;
+      if (!url) {
+        alert('تعذّر عرض صورة الإيصال');
+        return;
+      }
+      setSelectedImageModal({ url, name: item.fullName });
+    } catch (error) {
+      console.error('Error loading screenshot:', error);
+      alert('تعذّر عرض صورة الإيصال');
+    } finally {
+      setScreenshotLoadingId(null);
+    }
+  };
+
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      if (statusFilter && item.status !== statusFilter) return false;
+      return matchesAdminSearch(
+        [item.fullName, item.phoneNumber, item.whatsappNumber, item.church],
+        searchTerm
+      );
+    });
+  }, [items, searchTerm, statusFilter]);
+
   const handleExportCSV = () => {
-    const csvData = filteredItems.map(item => ({
-      'الاسم الكامل': item.data.fullName,
-      'الكنيسة': item.data.church,
-      'رقم الموبايل': item.data.phoneNumber ? `="${item.data.phoneNumber}"` : '',
-      'رقم الواتساب': (item.data.whatsappNumber || item.data.phoneNumber) ? `="${item.data.whatsappNumber || item.data.phoneNumber}"` : '',
-      'حالة الطلب': STATUS_LABELS[item.data.status]?.label || item.data.status,
-      'مرجع الإيصال': item.data.ocrExtractedReference ? `="${item.data.ocrExtractedReference}"` : '',
-      'تاريخ التسجيل': item.data.createdAt?.toDate?.()
-        ? new Date(item.data.createdAt.toDate()).toLocaleDateString('ar-EG')
+    const csvData = filteredItems.map((item) => ({
+      'الاسم الكامل': item.fullName,
+      'الكنيسة': item.church,
+      'رقم الموبايل': item.phoneNumber ? `="${item.phoneNumber}"` : '',
+      'رقم الواتساب': (item.whatsappNumber || item.phoneNumber) ? `="${item.whatsappNumber || item.phoneNumber}"` : '',
+      'حالة الطلب': STATUS_LABELS[item.status]?.label || item.status,
+      'مرجع الإيصال': item.ocrExtractedReference ? `="${item.ocrExtractedReference}"` : '',
+      'تاريخ التسجيل': item.createdAt
+        ? new Date(item.createdAt).toLocaleDateString('ar-EG')
         : '',
     }));
 
@@ -149,15 +174,6 @@ export default function RegistrantsPage() {
     link.click();
     document.body.removeChild(link);
   };
-
-  const filteredItems = searchTerm
-    ? items.filter(
-        (item) =>
-          item.data.fullName.includes(searchTerm) ||
-          item.data.phoneNumber.includes(searchTerm) ||
-          item.data.church.includes(searchTerm)
-      )
-    : items;
 
   return (
     <div>
@@ -392,10 +408,12 @@ export default function RegistrantsPage() {
             </svg>
           </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.5rem' }}>
-            لا توجد نتائج مطابقة
+            {loadError ? 'تعذّر تحميل القائمة' : 'لا توجد نتائج مطابقة'}
           </h2>
           <p style={{ color: 'rgba(247, 240, 228, 0.5)', fontSize: '0.875rem' }}>
-            جرب البحث باستخدام كلمات أو أرقام أخرى أو تغيير فلتر التصفية.
+            {loadError
+              ? 'حدث خطأ، برجاء المحاولة مرة أخرى'
+              : 'جرب البحث باستخدام كلمات أو أرقام أخرى أو تغيير فلتر التصفية.'}
           </p>
         </div>
       ) : (
@@ -415,7 +433,10 @@ export default function RegistrantsPage() {
               </thead>
               <tbody>
                 {filteredItems.map((item) => {
-                  const statusInfo = STATUS_LABELS[item.data.status];
+                  const statusInfo = STATUS_LABELS[item.status] ?? {
+                    label: item.status,
+                    className: 'badge-pending',
+                  };
                   return (
                     <tr
                       key={item.id}
@@ -424,10 +445,10 @@ export default function RegistrantsPage() {
                         transition: 'background 0.2s ease',
                       }}
                     >
-                      <td style={{ fontWeight: 700, color: '#f7f0e4', padding: '1rem 1.25rem' }}>{item.data.fullName}</td>
-                      <td style={{ color: 'rgba(247, 240, 228, 0.8)', padding: '1rem 1.25rem' }}>{item.data.church}</td>
+                      <td style={{ fontWeight: 700, color: '#f7f0e4', padding: '1rem 1.25rem' }}>{item.fullName}</td>
+                      <td style={{ color: 'rgba(247, 240, 228, 0.8)', padding: '1rem 1.25rem' }}>{item.church}</td>
                       <td dir="ltr" style={{ textAlign: 'right', color: 'rgba(247, 240, 228, 0.85)', padding: '1rem 1.25rem', fontFamily: 'monospace' }}>
-                        {item.data.phoneNumber}
+                        {item.phoneNumber}
                       </td>
                       <td style={{ padding: '1rem 1.25rem' }}>
                         <span className={`badge ${statusInfo.className}`}>
@@ -435,52 +456,41 @@ export default function RegistrantsPage() {
                         </span>
                       </td>
                       <td style={{ fontSize: '0.875rem', color: '#fbba33', padding: '1rem 1.25rem', fontFamily: 'monospace' }}>
-                        {item.data.ocrExtractedReference || '—'}
+                        {item.ocrExtractedReference || '—'}
                       </td>
                       <td style={{ fontSize: '0.8125rem', color: 'rgba(247, 240, 228, 0.55)', padding: '1rem 1.25rem' }}>
-                        {item.data.createdAt?.toDate?.()
-                          ? new Date(item.data.createdAt.toDate()).toLocaleDateString('ar-EG')
+                        {item.createdAt
+                          ? new Date(item.createdAt).toLocaleDateString('ar-EG')
                           : '—'}
                       </td>
                       <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
                         <div style={{ display: 'inline-flex', gap: '0.5rem', alignItems: 'center' }}>
-                          {item.data.paymentScreenshotUrl && (() => {
-                            const validUrl = safeImageSrc(item.data.paymentScreenshotUrl);
-                            return validUrl ? (
-                              <button
-                                onClick={() => setSelectedImageModal({ url: validUrl, name: item.data.fullName })}
-                                title="معاينة إيصال الدفع"
-                                style={{
-                                  background: 'rgba(251, 186, 51, 0.12)',
-                                  border: '1px solid rgba(251, 186, 51, 0.3)',
-                                  borderRadius: '0.5rem',
-                                  padding: '0.5rem',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  transition: 'all 0.2s ease',
-                                  color: '#fbba33',
-                                }}
-                                onMouseEnter={(e) => {
-                                  e.currentTarget.style.background = 'rgba(251, 186, 51, 0.25)';
-                                }}
-                                onMouseLeave={(e) => {
-                                  e.currentTarget.style.background = 'rgba(251, 186, 51, 0.12)';
-                                }}
-                              >
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect width="18" height="18" x="3" y="3" rx="2" />
-                                  <circle cx="9" cy="9" r="2" />
-                                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-                                </svg>
-                              </button>
-                            ) : (
-                              <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>صورة غير صالحة</span>
-                            );
-                          })()}
+                          <button
+                            onClick={() => void openScreenshot(item)}
+                            disabled={screenshotLoadingId === item.id}
+                            title="معاينة إيصال الدفع"
+                            style={{
+                              background: 'rgba(251, 186, 51, 0.12)',
+                              border: '1px solid rgba(251, 186, 51, 0.3)',
+                              borderRadius: '0.5rem',
+                              padding: '0.5rem',
+                              cursor: screenshotLoadingId === item.id ? 'wait' : 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              transition: 'all 0.2s ease',
+                              color: '#fbba33',
+                              opacity: screenshotLoadingId === item.id ? 0.6 : 1,
+                            }}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect width="18" height="18" x="3" y="3" rx="2" />
+                              <circle cx="9" cy="9" r="2" />
+                              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                            </svg>
+                          </button>
 
-                          {(item.data.status === 'approved' || item.data.status === 'auto_approved') && (
+                          {(item.status === 'approved' || item.status === 'auto_approved') && (
                             <a
                               href={getWhatsAppUrl(item)}
                               target="_blank" rel="noopener noreferrer"
@@ -549,18 +559,6 @@ export default function RegistrantsPage() {
               </tbody>
             </table>
           </div>
-
-          {hasMore && (
-            <div style={{ padding: '1.25rem', textAlign: 'center', background: 'rgba(12, 7, 3, 0.4)', borderTop: '1px solid rgba(242, 158, 19, 0.12)' }}>
-              <button
-                className="btn btn-ghost"
-                onClick={() => lastDoc && fetchItems(lastDoc)}
-                style={{ padding: '0.625rem 1.75rem', fontSize: '0.875rem', color: '#fbba33', border: '1px solid rgba(242, 158, 19, 0.25)' }}
-              >
-                تحميل المزيد من المسجلين
-              </button>
-            </div>
-          )}
         </div>
       )}
 

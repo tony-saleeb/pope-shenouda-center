@@ -80,3 +80,35 @@ export function safeImageSrc(url: unknown): string | null {
 
   return null;
 }
+
+/**
+ * Normalize Arabic/English text for admin search: alef variants, yaa/alef maqsura,
+ * taa marbuta, tashkeel, Eastern digits, and extra whitespace.
+ */
+export function normalizeForSearch(value: string): string {
+  if (!value) return '';
+  return value
+    .normalize('NFKC')
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ؤ/g, 'و')
+    .replace(/ئ/g, 'ي')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه')
+    .replace(/[٠-٩]/g, (d) => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString())
+    .replace(/[۰-۹]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+    .toLowerCase()
+    .replace(/[\s\-_.,،()]+/g, ' ')
+    .trim();
+}
+
+/** True when every query word appears somewhere in the given fields (any order). */
+export function matchesAdminSearch(
+  fields: Array<string | null | undefined>,
+  rawQuery: string
+): boolean {
+  const tokens = normalizeForSearch(rawQuery).split(' ').filter(Boolean);
+  if (tokens.length === 0) return true;
+  const haystack = normalizeForSearch(fields.filter((f): f is string => Boolean(f)).join(' '));
+  return tokens.every((token) => haystack.includes(token));
+}

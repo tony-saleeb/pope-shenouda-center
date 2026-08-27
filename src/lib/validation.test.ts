@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { safeImageSrc, isValidEgyptianPhone, normalizePhone, isValidName } from './validation';
+import {
+  safeImageSrc,
+  isValidEgyptianPhone,
+  normalizePhone,
+  isValidName,
+  matchesAdminSearch,
+} from './validation';
 
 describe('safeImageSrc', () => {
   it('allows valid base64 data URIs for jpeg, png, and webp', () => {
@@ -61,5 +67,25 @@ describe('isValidName', () => {
     expect(isValidName('مينا مجدي')).toBe(false);
     expect(isValidName('أ ب ج')).toBe(false);
     expect(isValidName('')).toBe(false);
+  });
+});
+
+describe('matchesAdminSearch', () => {
+  it('matches first and last name even when a middle name is skipped', () => {
+    expect(matchesAdminSearch(['ميلاد عوض مرقص معوض'], 'ميلاد مرقص')).toBe(true);
+    expect(matchesAdminSearch(['ميلاد عوض مرقص معوض'], 'ميلاد عوض مرقص معوض')).toBe(true);
+  });
+
+  it('treats Arabic letter variants as the same', () => {
+    expect(matchesAdminSearch(['الانبا رويس'], 'الأنبا')).toBe(true);
+    expect(matchesAdminSearch(['كنسية ماري جرجس'], 'مارى')).toBe(true);
+  });
+
+  it('ignores extra spaces and does not require a consecutive full-string match', () => {
+    expect(matchesAdminSearch(['مينا  مجدي   جرجس'], 'مينا مجدي')).toBe(true);
+  });
+
+  it('rejects a query whose tokens are not all present', () => {
+    expect(matchesAdminSearch(['مينا مجدي جرجس'], 'مينا ميخائيل')).toBe(false);
   });
 });
