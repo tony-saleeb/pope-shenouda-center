@@ -2,18 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
+import { expandTicketCheckIns } from '@/lib/gateCheckIns';
 
 export const runtime = 'nodejs';
-
-type TimestampLike = { toDate?: () => Date };
-
-function toIso(value: unknown): string | null {
-  if (!value || typeof value !== 'object') return null;
-  const toDate = (value as TimestampLike).toDate;
-  if (typeof toDate !== 'function') return null;
-  const date = toDate.call(value);
-  return date instanceof Date && !Number.isNaN(date.getTime()) ? date.toISOString() : null;
-}
 
 function asString(value: unknown): string {
   return typeof value === 'string' ? value : '';
@@ -42,21 +33,34 @@ export async function GET(request: NextRequest) {
         'registrantId',
         'registrantName',
         'church',
-        'phoneNumber'
+        'phoneNumber',
+        'checkIns'
       )
       .get();
 
-    const items = snapshot.docs.map((docSnap) => {
+    const items = snapshot.docs.flatMap((docSnap) => {
       const data = docSnap.data();
-      return {
-        id: docSnap.id,
-        registrantId: asString(data.registrantId) || docSnap.id,
+      const registrantId = asString(data.registrantId) || docSnap.id;
+      const base = {
+        registrantId,
         registrantName: asString(data.registrantName),
         church: asString(data.church),
         phoneNumber: asString(data.phoneNumber),
-        usedAt: toIso(data.usedAt),
-        usedByUsherId: asString(data.usedByUsherId),
       };
+      const checkIns = expandTicketCheckIns({
+        checkIns: data.checkIns,
+        usedAt: data.usedAt,
+        usedByUsherId: data.usedByUsherId,
+      });
+      if (checkIns.length === 0) {
+        return [];
+      }
+      return checkIns.map((entry, index) => ({
+        id: `${docSnap.id}:${entry.usedAt ?? index}`,
+        ...base,
+        usedAt: entry.usedAt,
+        usedByUsherId: entry.usedByUsherId,
+      }));
     });
 
     const missingIds = [

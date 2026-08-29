@@ -6,6 +6,8 @@ import { verifyAuthToken, PRIMARY_ADMIN_EMAIL } from '@/lib/auth/guards';
 import { getValidPasscode } from '@/app/api/scan/verify-passcode/route';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
+import { cairoDateKey } from '@/lib/eventDays';
+import { hasCheckInOnDay } from '@/lib/gateCheckIns';
 
 /** Max allowed qrToken length — reject unbounded input before it reaches HMAC. */
 const MAX_QR_TOKEN_LENGTH = 512;
@@ -143,24 +145,62 @@ export async function POST(request: NextRequest) {
       const registrantName = regData?.fullName || ticketData.registrantName || 'زائر';
       const church = regData?.church || ticketData.church || '';
 
-      if (ticketData.used) {
+      const todayKey = cairoDateKey(new Date());
+      if (todayKey && hasCheckInOnDay(ticketData, todayKey)) {
+        const todayEntry =
+          ticketData.checkIns &&
+          typeof ticketData.checkIns === 'object' &&
+          !Array.isArray(ticketData.checkIns)
+            ? (ticketData.checkIns as Record<string, { usedAt?: { toDate?: () => Date } }>)[todayKey]
+            : undefined;
+        const usedAtIso =
+          todayEntry?.usedAt?.toDate?.()?.toISOString?.() ||
+          ticketData.usedAt?.toDate?.()?.toISOString() ||
+          null;
         return {
           type: 'already_used' as const,
-          usedAt: ticketData.usedAt?.toDate?.()?.toISOString() || null,
+          usedAt: usedAtIso,
           registrantName,
           church,
         };
       }
 
-      // Mark as used atomically
-      transaction.update(targetTicketRef, {
+      const updates: Record<string, unknown> = {
         used: true,
         usedAt: FieldValue.serverTimestamp(),
         usedByUsherId: usherId,
         registrantName,
         church,
         phoneNumber: regData?.phoneNumber || ticketData.phoneNumber || '',
-      });
+      };
+
+      if (todayKey) {
+        updates[`checkIns.${todayKey}`] = {
+          usedAt: FieldValue.serverTimestamp(),
+          usedByUsherId: usherId,
+        };
+
+        const legacyDay = cairoDateKey(ticketData.usedAt?.toDate?.() ?? null);
+        const existingCheckIns =
+          ticketData.checkIns &&
+          typeof ticketData.checkIns === 'object' &&
+          !Array.isArray(ticketData.checkIns)
+            ? (ticketData.checkIns as Record<string, unknown>)
+            : null;
+        if (
+          legacyDay &&
+          legacyDay !== todayKey &&
+          ticketData.usedAt &&
+          !(existingCheckIns && Object.prototype.hasOwnProperty.call(existingCheckIns, legacyDay))
+        ) {
+          updates[`checkIns.${legacyDay}`] = {
+            usedAt: ticketData.usedAt,
+            usedByUsherId: ticketData.usedByUsherId || usherId,
+          };
+        }
+      }
+
+      transaction.update(targetTicketRef, updates);
 
       return {
         type: 'success' as const,
@@ -186,7 +226,7 @@ export async function POST(request: NextRequest) {
           church: result.church,
           usedAt: result.usedAt,
           message: 'Ticket already used',
-          messageAr: 'تنبيه: التذكرة مستعملة من قبل!',
+          messageAr: 'تنبيه: تم تسجيل دخول هذا الحاضر اليوم بالفعل',
         });
 
       case 'invalid_ticket':
