@@ -51,6 +51,8 @@ export interface Ticket {
   usedAt: Timestamp | null;
   usedByUsherId: string | null;
   createdAt: Timestamp;
+  /** One gate check-in per Cairo calendar day (`YYYY-MM-DD`). */
+  checkIns?: Record<string, { usedAt: Timestamp; usedByUsherId: string }>;
 }
 
 // ─── Staff ─────────────────────────────────────────────────────────

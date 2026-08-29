@@ -778,7 +778,7 @@ export default function ScanPage() {
                       color: item.type === 'success' ? '#10b981' : item.type === 'already_used' ? '#fbba33' : '#ef4444',
                       fontWeight: 700,
                     }}>
-                      {item.type === 'success' ? 'مقبول ✓' : item.type === 'already_used' ? 'مستعمل مسبقاً' : 'خطأ'}
+                      {item.type === 'success' ? 'مقبول ✓' : item.type === 'already_used' ? 'دخل اليوم' : 'خطأ'}
                     </span>
                   </div>
                 ))}
