@@ -124,7 +124,7 @@ export default function TicketLookupPage() {
                   className="btn btn-primary btn-full"
                   style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 >
-                  📝 التسجيل في المؤتمر الآن
+                  📝 التسجيل في الدورة الآن
                 </Link>
                 <button
                   onClick={() => { setNotFoundError(null); setError(null); }}

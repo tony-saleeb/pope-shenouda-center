@@ -184,7 +184,7 @@ export default function RegistrantsPage() {
         paddingBottom: '1.25rem',
       }}>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.25rem' }}>
-          قائمة المسجّلين في المؤتمر
+          قائمة المسجّلين في الدورة
         </h1>
         <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
           بحث وسجل كامل لجميع بيانات المسجلين وتصفية الحالات
