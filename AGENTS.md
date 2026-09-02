@@ -3,7 +3,7 @@
 
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
-# Project rules — ticket-reg-10century
+# Project rules — pope-shenouda-center
 
 ## Non-negotiables
 - **Never weaken `firestore.rules` or `storage.rules`.** If a change requires looser rules, stop and say so instead.

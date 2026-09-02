@@ -20,8 +20,8 @@ export default function Header() {
         {/* Logo 1: Pope Shenouda Center (Left) */}
         <div style={{ flex: '1', display: 'flex', justifyContent: 'center' }}>
           <Image
-            src="/logo-shenouda.webp"
-            alt="مرکز البابا شنودة للتاريخ الكنسي"
+            src="/logo-shenouda.png"
+            alt="مركز البابا شنودة للتاريخ الكنسي بكنائس وسط القاهرة"
             width={70}
             height={70}
             style={{

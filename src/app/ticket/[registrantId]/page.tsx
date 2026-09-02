@@ -142,7 +142,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
 
       ctx.fillStyle = '#f7f0e4';
       ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
-      ctx.fillText('مؤتمر القرن العاشر', width / 2, 118);
+      ctx.fillText('دورة التاريخ الكنسي', width / 2, 118);
 
       // 4. QR Code Box (Solid White Card filling QR code edge to edge)
       const qrImg = new Image();
@@ -229,7 +229,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
         const url = URL.createObjectURL(blob);
 
         if (navigator.share && navigator.canShare) {
-          const file = new File([blob], `ticket-10century-${registrantId}.png`, { type: 'image/png' });
+          const file = new File([blob], `ticket-pope-shenouda-center-${registrantId}.png`, { type: 'image/png' });
           const shareData = { files: [file] };
 
           if (navigator.canShare(shareData)) {
@@ -255,7 +255,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
   const fallbackDownload = (url: string) => {
     const a = document.createElement('a');
     a.href = url;
-    a.download = `ticket-10century-${registrantId}.png`;
+    a.download = `ticket-pope-shenouda-center-${registrantId}.png`;
     a.style.display = 'none';
     document.body.appendChild(a);
     a.click();
@@ -306,7 +306,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
               <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.25rem' }}>
                 تذكرة دخول
               </p>
-              <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>مؤتمر القرن العاشر</h1>
+              <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>دورة التاريخ الكنسي</h1>
             </div>
 
             {/* QR Code */}

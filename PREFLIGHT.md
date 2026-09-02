@@ -88,11 +88,11 @@ Rate limiting needs shared state. In-memory counters don't work on Vercel — ev
 Do this **before** App Check — App Check asks for the secret key this step produces.
 
 1. Go to **[google.com/recaptcha/admin/create](https://www.google.com/recaptcha/admin/create)** (use the Google account that owns the Firebase project).
-2. **Label:** `ticket-reg-10century`
+2. **Label:** `pope-shenouda-center`
 3. **Type: reCAPTCHA v3** — the "score-based" option. Not v2, not checkbox.
 4. **Domains** — add every one, one per line:
    ```
-   ticket-reg-10century.vercel.app
+   pope-shenouda-center.vercel.app
    <your-custom-domain-if-any>
    localhost
    ```

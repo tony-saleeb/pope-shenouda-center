@@ -4,9 +4,9 @@ import { AuthProvider } from "@/lib/auth/context";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
 
 export const metadata: Metadata = {
-  title: "مؤتمر القرن العاشر | حجز وتأكيد التذاكر",
+  title: "دورة التاريخ الكنسي | مركز البابا شنودة",
   description:
-    "نظام تسجيل الحضور وحجز التذاكر لمؤتمر القرن العاشر — سجّل الآن واحصل على تذكرتك الإلكترونية",
+    "نظام تسجيل الحضور لدورة مركز البابا شنودة للتاريخ الكنسي — سجّل الآن واحصل على تذكرتك الإلكترونية",
 };
 
 export const viewport = {

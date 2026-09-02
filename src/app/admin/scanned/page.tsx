@@ -220,7 +220,7 @@ export default function ScannedAttendeesPage() {
             المسجلون في البوابة
           </h1>
           <p style={{ fontSize: '0.875rem', color: 'rgba(247, 240, 228, 0.6)', margin: 0 }}>
-            حضور المؤتمر حسب يوم الدخول — ٢٧ و٢٨ و٢٩ أغسطس
+            حضور الدورة حسب يوم الدخول — ٢٧ و٢٨ و٢٩ أغسطس
           </p>
         </div>
       </div>

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import PaymentInstructionsModal from '@/components/PaymentInstructionsModal';
@@ -17,26 +16,25 @@ export default function HomePage() {
       <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
       {/* Hero Section */}
       <div style={{ textAlign: 'center', maxWidth: '32rem', margin: '0 auto' }}>
-        {/* Conference Logo Badge */}
         <div style={{
-          width: '6.5rem',
-          height: '6.5rem',
-          margin: '0 auto 1.5rem',
-          borderRadius: '50%',
-          background: '#ffffff',
-          border: '2px solid #fbba33',
+          width: '16rem',
+          maxWidth: '90%',
+          margin: '0 auto 1.75rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 8px 32px rgba(251, 186, 51, 0.35)',
-          padding: '0.625rem',
         }}>
           <Image
-            src="/icon.png"
-            alt="مؤتمر القرن العاشر"
-            width={104}
-            height={104}
-            style={{ width: '100%', height: 'auto', objectFit: 'contain' }}
+            src="/logo-shenouda.png"
+            alt="مركز البابا شنودة للتاريخ الكنسي بكنائس وسط القاهرة"
+            width={2000}
+            height={2000}
+            style={{
+              width: '100%',
+              height: 'auto',
+              objectFit: 'contain',
+              filter: 'drop-shadow(0 10px 24px rgba(0, 0, 0, 0.55))',
+            }}
             priority
           />
         </div>
@@ -47,26 +45,24 @@ export default function HomePage() {
           fontWeight: 900,
           lineHeight: 1.2,
           marginBottom: '1rem',
-          background: 'linear-gradient(135deg, #ffffff, var(--color-accent-300))',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          backgroundClip: 'text',
+          color: '#f3e6c8',
+          textShadow: '0 2px 18px rgba(0, 0, 0, 0.45)',
         }}>
-          مؤتمر القرن العاشر
+          دورة التاريخ الكنسي
         </h1>
 
         <p style={{
           fontSize: '1.125rem',
-          color: 'rgba(255, 255, 255, 0.6)',
+          color: 'rgba(243, 230, 200, 0.78)',
           lineHeight: 1.8,
           marginBottom: '0.5rem',
         }}>
-          سجّل حضورك الآن واحصل على تذكرتك الإلكترونية
+          سجّل في الدورة الآن واحصل على تذكرتك الإلكترونية
         </p>
 
         <p style={{
           fontSize: '0.875rem',
-          color: 'rgba(255, 255, 255, 0.35)',
+          color: 'rgba(212, 175, 106, 0.7)',
           marginBottom: '3rem',
         }}>
           احرص على رفع صورة إيصال الدفع البنكي لإتمام التسجيل
@@ -86,7 +82,7 @@ export default function HomePage() {
               cursor: 'pointer',
             }}
           >
-            <span>تسجيل حضور جديد</span>
+            <span>التسجيل في الدورة</span>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
               <line x1="5" y1="12" x2="19" y2="12" />
               <polyline points="12 5 19 12 12 19" />
