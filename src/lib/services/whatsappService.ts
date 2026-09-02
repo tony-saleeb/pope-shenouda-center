@@ -6,7 +6,7 @@ function resolveAppOrigin(explicit?: string): string {
   if (explicit) return explicit.replace(/\/$/, '');
   if (typeof window !== 'undefined') return window.location.origin;
 
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL;
   if (fromEnv) {
     return fromEnv.startsWith('http') ? fromEnv.replace(/\/$/, '') : `https://${fromEnv}`;
   }

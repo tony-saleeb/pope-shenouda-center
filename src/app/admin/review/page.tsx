@@ -8,6 +8,7 @@ import {
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
 import type { Registrant } from '@/lib/types';
+import { formatTrackTitle, getTrack } from '@/lib/registrationTracks';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
 import { safeImageSrc } from '@/lib/validation';
@@ -357,6 +358,12 @@ export default function ReviewPage() {
                         </svg>
                         <span>{item.data.church}</span>
                       </div>
+
+                      {getTrack(item.data.track) && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span>{formatTrackTitle(getTrack(item.data.track)!)}</span>
+                        </div>
+                      )}
 
                       <div dir="ltr" style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
                         <span>{item.data.phoneNumber}</span>

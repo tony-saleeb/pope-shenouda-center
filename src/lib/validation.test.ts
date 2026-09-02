@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   safeImageSrc,
   isValidEgyptianPhone,
+  isValidInternationalPhone,
   normalizePhone,
+  resolveLookupPhoneId,
+  sanitizePhoneInput,
+  toPhoneIndexId,
   isValidName,
   matchesAdminSearch,
 } from './validation';
@@ -55,6 +59,22 @@ describe('isValidEgyptianPhone & normalizePhone', () => {
 
   it('normalizes spaces and hyphens', () => {
     expect(normalizePhone('010 1234-5678')).toBe('01012345678');
+  });
+
+  it('accepts Eastern Arabic and Persian digits', () => {
+    expect(normalizePhone('٠١٢١٢٣٤٥٦٧٨')).toBe('01212345678');
+    expect(isValidEgyptianPhone('٠١٢١٢٣٤٥٦٧٨')).toBe(true);
+    expect(sanitizePhoneInput('٠١٢٧١٤٨٨١٣abc')).toBe('0127148813');
+    expect(sanitizePhoneInput('۰۱۲۱۲۳۴۵۶۷۸')).toBe('01212345678');
+  });
+
+  it('validates international numbers with a country dial code', () => {
+    expect(isValidInternationalPhone('1', '2025551234')).toBe(true);
+    expect(isValidInternationalPhone('971', '501234567')).toBe(true);
+    expect(toPhoneIndexId('44', '07123456789')).toBe('447123456789');
+    expect(isValidInternationalPhone('1', '12')).toBe(false);
+    expect(resolveLookupPhoneId('+1 2025551234')).toBe('12025551234');
+    expect(resolveLookupPhoneId('01012345678')).toBe('01012345678');
   });
 });
 

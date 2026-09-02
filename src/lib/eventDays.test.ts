@@ -3,7 +3,8 @@ import {
   cairoDateKey,
   defaultEventDayId,
   eventDayIdForTimestamp,
-  EVENT_DAYS,
+  isCourseWeekday,
+  listCourseSessions,
 } from './eventDays';
 
 describe('cairoDateKey', () => {
@@ -16,25 +17,50 @@ describe('cairoDateKey', () => {
   });
 });
 
-describe('eventDayIdForTimestamp', () => {
-  it('maps scans onto the three conference days', () => {
-    expect(eventDayIdForTimestamp('2026-08-27T10:00:00.000Z')).toBe('2026-08-27');
-    expect(eventDayIdForTimestamp('2026-08-28T10:00:00.000Z')).toBe('2026-08-28');
-    expect(eventDayIdForTimestamp('2026-08-29T10:00:00.000Z')).toBe('2026-08-29');
+describe('course weekdays', () => {
+  it('keeps only Tuesday and Saturday', () => {
+    expect(isCourseWeekday('2026-09-01')).toBe(true);
+    expect(isCourseWeekday('2026-09-05')).toBe(true);
+    expect(isCourseWeekday('2026-09-03')).toBe(false);
+    expect(isCourseWeekday('2026-09-02')).toBe(false);
   });
 
-  it('sends timestamps outside the conference to other', () => {
+  it('lists Tuesday and Saturday sessions from the course start', () => {
+    const sessions = listCourseSessions('2026-09-01', '2026-09-12');
+    expect(sessions.map((session) => session.id)).toEqual([
+      '2026-09-01',
+      '2026-09-05',
+      '2026-09-08',
+      '2026-09-12',
+    ]);
+    expect(sessions[0]?.weekdayAr).toBe('الثلاثاء');
+    expect(sessions[1]?.weekdayAr).toBe('السبت');
+  });
+});
+
+describe('eventDayIdForTimestamp', () => {
+  it('maps scans onto Tuesday and Saturday sessions', () => {
+    expect(eventDayIdForTimestamp('2026-10-03T10:00:00.000Z')).toBe('2026-10-03');
+    expect(eventDayIdForTimestamp('2026-10-06T10:00:00.000Z')).toBe('2026-10-06');
+  });
+
+  it('sends timestamps outside the course schedule to other', () => {
     expect(eventDayIdForTimestamp('2026-08-26T10:00:00.000Z')).toBe('other');
+    expect(eventDayIdForTimestamp('2026-09-01T10:00:00.000Z')).toBe('other');
     expect(eventDayIdForTimestamp(null)).toBe('other');
   });
 });
 
 describe('defaultEventDayId', () => {
-  it('selects today when today is a conference day', () => {
-    expect(defaultEventDayId(new Date('2026-08-28T12:00:00.000Z'))).toBe('2026-08-28');
+  it('selects today when today is a session', () => {
+    expect(defaultEventDayId(new Date('2026-10-06T12:00:00.000Z'))).toBe('2026-10-06');
   });
 
-  it('falls back to the first conference day otherwise', () => {
-    expect(defaultEventDayId(new Date('2026-08-01T12:00:00.000Z'))).toBe(EVENT_DAYS[0].id);
+  it('falls forward to the next Tuesday or Saturday', () => {
+    expect(defaultEventDayId(new Date('2026-10-01T12:00:00.000Z'))).toBe('2026-10-03');
+  });
+
+  it('falls back to the first session when before the course', () => {
+    expect(defaultEventDayId(new Date('2026-08-01T12:00:00.000Z'))).toBe('2026-10-03');
   });
 });

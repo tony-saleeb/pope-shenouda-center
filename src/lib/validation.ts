@@ -11,10 +11,59 @@ export function normalizePhone(phone: string): string {
   return converted.replace(/[\s\-\(\)]/g, '');
 }
 
+/** Convert Arabic or English digits to Western 0-9. */
+export function digitsOnlyPhone(value: string): string {
+  return normalizePhone(value).replace(/\D/g, '');
+}
+
+/** Convert Arabic or English digits to Western 0-9 and keep at most `maxDigits` phone digits. */
+export function sanitizePhoneInput(value: string, maxDigits = 11): string {
+  return digitsOnlyPhone(value).slice(0, maxDigits);
+}
+
+/** National number for an international line: drop a leading 0, cap length. */
+export function sanitizeNationalPhoneInput(value: string): string {
+  let digits = digitsOnlyPhone(value);
+  if (digits.startsWith('0')) digits = digits.slice(1);
+  return digits.slice(0, 12);
+}
+
 /** Validate an Egyptian mobile phone number: 01[0125]XXXXXXXX (11 digits) */
 export function isValidEgyptianPhone(phone: string): boolean {
   const cleaned = normalizePhone(phone);
   return /^01[0125]\d{8}$/.test(cleaned);
+}
+
+/** International number: country dial + national digits, 8–15 digits total. */
+export function isValidInternationalPhone(dial: string, national: string): boolean {
+  if (!/^\d{1,4}$/.test(dial)) return false;
+  const local = sanitizeNationalPhoneInput(national);
+  if (!/^\d{6,12}$/.test(local)) return false;
+  const combined = `${dial}${local}`;
+  return combined.length >= 8 && combined.length <= 15;
+}
+
+export function toPhoneIndexId(dial: string, national: string): string {
+  return `${dial}${sanitizeNationalPhoneInput(national)}`;
+}
+
+/**
+ * Phone index document id for lookup: Egyptian 01… or an international number of 8–15 digits.
+ */
+export function resolveLookupPhoneId(raw: string): string | null {
+  const egyptian = normalizePhone(raw);
+  if (isValidEgyptianPhone(egyptian)) return egyptian;
+
+  let digits = digitsOnlyPhone(raw);
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.startsWith('20') && digits.length === 12) {
+    const local = `0${digits.slice(2)}`;
+    if (isValidEgyptianPhone(local)) return local;
+  }
+  if (digits.length >= 8 && digits.length <= 15 && !digits.startsWith('0')) {
+    return digits;
+  }
+  return null;
 }
 
 /** Validate that a name contains at least 3 words (الاسم ثلاثي على الأقل) */
@@ -41,6 +90,9 @@ export const VALIDATION_MESSAGES = {
   customChurchRequired: 'برجاء إدخال اسم الكنيسة',
   phoneRequired: 'برجاء إدخال رقم الموبايل',
   phoneInvalid: 'رقم الموبايل غير صحيح، تأكد من كتابة ١١ رقم يبدأ بـ 01',
+  intlPhoneInvalid: 'رقم الموبايل غير صحيح، تأكد من كود الدولة والرقم',
+  countryRequired: 'برجاء اختيار كود الدولة',
+  trackRequired: 'برجاء اختيار نوع التسجيل',
   whatsappRequired: 'برجاء إدخال رقم الواتساب',
   whatsappInvalid: 'رقم الواتساب غير صحيح، تأكد من كتابة ١١ رقم يبدأ بـ 01',
   screenshotRequired: 'برجاء إرفاق صورة إيصال الدفع',

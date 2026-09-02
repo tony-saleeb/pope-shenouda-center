@@ -37,6 +37,9 @@ export async function GET(request: NextRequest) {
         'whatsappNumber',
         'church',
         'status',
+        'track',
+        'feeAmount',
+        'feeCurrency',
         'ocrExtractedReference',
         'createdAt'
       )
@@ -51,6 +54,9 @@ export async function GET(request: NextRequest) {
         whatsappNumber: typeof data.whatsappNumber === 'string' ? data.whatsappNumber : '',
         church: typeof data.church === 'string' ? data.church : '',
         status: typeof data.status === 'string' ? data.status : 'pending_verification',
+        track: typeof data.track === 'string' ? data.track : '',
+        feeAmount: typeof data.feeAmount === 'number' ? data.feeAmount : null,
+        feeCurrency: typeof data.feeCurrency === 'string' ? data.feeCurrency : '',
         ocrExtractedReference:
           typeof data.ocrExtractedReference === 'string' ? data.ocrExtractedReference : null,
         createdAt: toIso(data.createdAt),

@@ -11,7 +11,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { isValidEgyptianPhone, normalizePhone, VALIDATION_MESSAGES } from '@/lib/validation';
+import { resolveLookupPhoneId, VALIDATION_MESSAGES } from '@/lib/validation';
 import { sendAutomatedWhatsAppTicket } from '@/lib/whatsapp/api';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
 
@@ -40,9 +40,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalized = normalizePhone(phone);
+    const normalized = resolveLookupPhoneId(phone);
 
-    if (!isValidEgyptianPhone(normalized)) {
+    if (!normalized) {
       return NextResponse.json(
         { error: 'Invalid phone format', messageAr: VALIDATION_MESSAGES.phoneInvalid },
         { status: 400 }

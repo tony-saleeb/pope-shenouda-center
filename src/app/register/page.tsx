@@ -5,18 +5,47 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/client';
 import { compressPaymentScreenshot, UploadProgress } from '@/lib/firebase/storage';
 import {
-  isValidName,
   isValidEgyptianPhone,
+  isValidInternationalPhone,
+  isValidName,
   normalizePhone,
+  sanitizeNationalPhoneInput,
+  sanitizePhoneInput,
+  toPhoneIndexId,
   VALIDATION_MESSAGES,
 } from '@/lib/validation';
+import { DIAL_COUNTRIES } from '@/lib/countries';
+import { getTrack, TRACK_LIST } from '@/lib/registrationTracks';
 import { WIZARD_STEPS } from '@/lib/types';
 import type { RegistrationFormData } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
-import PaymentInstructionsModal from '@/components/PaymentInstructionsModal';
+import PaymentInstructionsPanel from '@/components/PaymentInstructionsModal';
+
+const STEP_TRACK = 0;
+const STEP_FEES = 1;
+const STEP_NAME = 2;
+const STEP_CHURCH = 3;
+const STEP_PHONE = 4;
+const STEP_PAYMENT = 5;
 
 const NETWORK_ERROR_MESSAGE = 'تعذّر الاتصال بالخدمة، تأكد من الإنترنت وحاول مرة أخرى';
+
+function storedPhone(form: RegistrationFormData, kind: 'phone' | 'whatsapp' = 'phone'): string {
+  const national = kind === 'whatsapp' && !form.sameAsPhone ? form.whatsappNumber : form.phoneNumber;
+  if (form.track === 'abroad') {
+    return toPhoneIndexId(form.countryDial, national);
+  }
+  return normalizePhone(national);
+}
+
+function isPhoneValid(form: RegistrationFormData, kind: 'phone' | 'whatsapp' = 'phone'): boolean {
+  const national = kind === 'whatsapp' && !form.sameAsPhone ? form.whatsappNumber : form.phoneNumber;
+  if (form.track === 'abroad') {
+    return isValidInternationalPhone(form.countryDial, national);
+  }
+  return isValidEgyptianPhone(national);
+}
 
 interface RegisterResponse {
   registrantId?: string;
@@ -65,32 +94,20 @@ function postRegistration(
 // ─── Step Indicator ─────────────────────────────────────────────────
 function StepIndicator({ currentStep }: { currentStep: number }) {
   return (
-    <div className="step-indicator" style={{ marginBottom: '2rem' }}>
+    <div
+      className="step-rail"
+      role="progressbar"
+      aria-valuenow={currentStep + 1}
+      aria-valuemin={1}
+      aria-valuemax={WIZARD_STEPS.length}
+      style={{ gridTemplateColumns: `repeat(${WIZARD_STEPS.length}, minmax(0, 1fr))` }}
+    >
       {WIZARD_STEPS.map((step, index) => (
-        <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div
-            className={`step-dot ${
-              index === currentStep
-                ? 'step-dot-active'
-                : index < currentStep
-                ? 'step-dot-completed'
-                : 'step-dot-inactive'
-            }`}
-          >
-            {index < currentStep ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            ) : (
-              <span>{(index + 1).toLocaleString('ar-EG')}</span>
-            )}
-          </div>
-          {index < WIZARD_STEPS.length - 1 && (
-            <div
-              className={`step-connector ${index < currentStep ? 'step-connector-active' : ''}`}
-            />
-          )}
-        </div>
+        <span
+          key={step.id}
+          className={`step-rail-stop${index < currentStep ? ' is-done' : ''}${index === currentStep ? ' is-current' : ''}`}
+          title={step.titleAr}
+        />
       ))}
     </div>
   );
@@ -111,12 +128,13 @@ function StepTitle({ step, total }: { step: number; total: number }) {
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<RegistrationFormData>({
+    track: '',
     fullName: '',
     church: '',
     customChurch: '',
+    countryDial: '',
     phoneNumber: '',
     whatsappNumber: '',
     sameAsPhone: true,
@@ -127,6 +145,9 @@ export default function RegisterPage() {
   const [checkingPhone, setCheckingPhone] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const selectedTrack = getTrack(formData.track);
+  const isAbroad = formData.track === 'abroad';
 
   // ─── Field updates ───────────────────────────────────────────────
   const updateField = useCallback(
@@ -146,33 +167,50 @@ export default function RegisterPage() {
     const newErrors: Record<string, string> = {};
 
     switch (step) {
-      case 0: // Name
+      case STEP_TRACK:
+        if (!formData.track) {
+          newErrors.track = VALIDATION_MESSAGES.trackRequired;
+        }
+        break;
+      case STEP_FEES:
+        if (!formData.track) {
+          newErrors.track = VALIDATION_MESSAGES.trackRequired;
+        }
+        break;
+      case STEP_NAME:
         if (!formData.fullName.trim()) {
           newErrors.fullName = VALIDATION_MESSAGES.nameRequired;
         } else if (!isValidName(formData.fullName)) {
           newErrors.fullName = VALIDATION_MESSAGES.nameTooShort;
         }
         break;
-      case 1: // Church
+      case STEP_CHURCH:
         if (!formData.church.trim()) {
           newErrors.church = VALIDATION_MESSAGES.churchRequired;
         }
         break;
-      case 2: // Phone
+      case STEP_PHONE:
+        if (isAbroad && !formData.countryDial) {
+          newErrors.countryDial = VALIDATION_MESSAGES.countryRequired;
+        }
         if (!formData.phoneNumber) {
           newErrors.phoneNumber = VALIDATION_MESSAGES.phoneRequired;
-        } else if (!isValidEgyptianPhone(formData.phoneNumber)) {
-          newErrors.phoneNumber = VALIDATION_MESSAGES.phoneInvalid;
+        } else if (!isPhoneValid(formData, 'phone')) {
+          newErrors.phoneNumber = isAbroad
+            ? VALIDATION_MESSAGES.intlPhoneInvalid
+            : VALIDATION_MESSAGES.phoneInvalid;
         }
         if (!formData.sameAsPhone) {
           if (!formData.whatsappNumber) {
             newErrors.whatsappNumber = VALIDATION_MESSAGES.whatsappRequired;
-          } else if (!isValidEgyptianPhone(formData.whatsappNumber)) {
-            newErrors.whatsappNumber = VALIDATION_MESSAGES.whatsappInvalid;
+          } else if (!isPhoneValid(formData, 'whatsapp')) {
+            newErrors.whatsappNumber = isAbroad
+              ? VALIDATION_MESSAGES.intlPhoneInvalid
+              : VALIDATION_MESSAGES.whatsappInvalid;
           }
         }
         break;
-      case 3: // Payment
+      case STEP_PAYMENT:
         if (!formData.paymentScreenshot) {
           newErrors.paymentScreenshot = VALIDATION_MESSAGES.screenshotRequired;
         }
@@ -187,11 +225,10 @@ export default function RegisterPage() {
   const goNext = async () => {
     if (!validateStep(currentStep)) return;
 
-    // Step 2 is Phone Step — Check uniqueness in Firestore before proceeding to screenshot upload
-    if (currentStep === 2) {
+    if (currentStep === STEP_PHONE) {
       setCheckingPhone(true);
       try {
-        const phone = normalizePhone(formData.phoneNumber);
+        const phone = storedPhone(formData);
         const phoneRef = doc(db, 'phoneIndex', phone);
         const phoneDoc = await getDoc(phoneRef);
 
@@ -233,10 +270,8 @@ export default function RegisterPage() {
     if (!formData.paymentScreenshot) return;
 
     setIsSubmitting(true);
-    const phone = normalizePhone(formData.phoneNumber);
-    const whatsapp = formData.sameAsPhone
-      ? phone
-      : normalizePhone(formData.whatsappNumber);
+    const phone = storedPhone(formData, 'phone');
+    const whatsapp = storedPhone(formData, 'whatsapp');
 
     const abort = (field: 'submit' | 'phoneNumber' | 'paymentScreenshot', message: string) => {
       setIsSubmitting(false);
@@ -258,6 +293,8 @@ export default function RegisterPage() {
     const body = new FormData();
     body.append('fullName', formData.fullName.trim());
     body.append('church', formData.church.trim());
+    body.append('track', formData.track);
+    body.append('countryDial', formData.countryDial);
     body.append('phoneNumber', phone);
     body.append('whatsappNumber', whatsapp);
     body.append('screenshot', compressed, 'receipt.jpg');
@@ -266,7 +303,7 @@ export default function RegisterPage() {
 
     if (status === 409) {
       abort('phoneNumber', payload?.messageAr ?? VALIDATION_MESSAGES.duplicatePhone);
-      setCurrentStep(2); // Go back to phone step
+      setCurrentStep(STEP_PHONE);
       return;
     }
 
@@ -287,7 +324,54 @@ export default function RegisterPage() {
   // ─── Render Steps ────────────────────────────────────────────────
   const renderStep = () => {
     switch (currentStep) {
-      case 0: // Name
+      case STEP_TRACK:
+        return (
+          <div className="fade-in">
+            <div className="track-grid">
+              {TRACK_LIST.map((track) => {
+                const selected = formData.track === track.id;
+                return (
+                  <button
+                    key={track.id}
+                    type="button"
+                    className={`track-card is-${track.tone}${selected ? ' is-selected' : ''}`}
+                    onClick={() => {
+                      setFormData((prev) => {
+                        const switchingAbroad = (prev.track === 'abroad') !== (track.id === 'abroad');
+                        return {
+                          ...prev,
+                          track: track.id,
+                          ...(switchingAbroad
+                            ? { phoneNumber: '', whatsappNumber: '', countryDial: '' }
+                            : {}),
+                        };
+                      });
+                      setErrors((prev) => {
+                        const next = { ...prev };
+                        delete next.track;
+                        return next;
+                      });
+                    }}
+                  >
+                    {track.tagAr && <span className={`track-tag is-${track.tone}`}>{track.tagAr}</span>}
+                    <span className="track-card-title">{track.titleAr}</span>
+                    <span className="track-card-detail">{track.detailAr}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {errors.track && <p className="form-error">{errors.track}</p>}
+          </div>
+        );
+
+      case STEP_FEES:
+        return selectedTrack ? (
+          <div className="fade-in">
+            <PaymentInstructionsPanel track={selectedTrack} />
+          </div>
+        ) : null;
+
+      case STEP_NAME:
         return (
           <div className="fade-in">
             <label className="form-label" htmlFor="fullName">الاسم ثلاثي على الأقل</label>
@@ -305,7 +389,7 @@ export default function RegisterPage() {
           </div>
         );
 
-      case 1: // Church
+      case STEP_CHURCH:
         return (
           <div className="fade-in">
             <label className="form-label" htmlFor="church">الكنيسة</label>
@@ -322,19 +406,37 @@ export default function RegisterPage() {
           </div>
         );
 
-      case 2: // Phone
+      case STEP_PHONE:
         return (
           <div className="fade-in">
             <label className="form-label" htmlFor="phoneNumber">رقم الموبايل</label>
-            <div style={{ position: 'relative' }}>
+            <div className={isAbroad ? 'phone-intl' : undefined} style={{ position: 'relative' }}>
+              {isAbroad && (
+                <select
+                  id="countryDial"
+                  className={`form-input phone-dial${errors.countryDial ? ' form-input-error' : ''}`}
+                  value={formData.countryDial}
+                  onChange={(e) => updateField('countryDial', e.target.value)}
+                >
+                  <option value="">كود الدولة</option>
+                  {DIAL_COUNTRIES.map((country) => (
+                    <option key={`${country.iso}-${country.dial}`} value={country.dial}>
+                      {country.nameAr} +{country.dial}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <div style={{ position: 'relative', flex: '1 1 auto', minWidth: 0 }}>
               <input
                 id="phoneNumber"
                 type="tel"
-                className={`form-input ${errors.phoneNumber ? 'form-input-error' : ''}`}
-                placeholder="01XXXXXXXXX"
+                className={`form-input form-input-phone ${errors.phoneNumber ? 'form-input-error' : ''}`}
+                placeholder={isAbroad ? 'رقم الموبايل' : '01XXXXXXXXX'}
                 value={formData.phoneNumber}
                 onChange={(e) => {
-                  const val = e.target.value;
+                  const val = isAbroad
+                    ? sanitizeNationalPhoneInput(e.target.value)
+                    : sanitizePhoneInput(e.target.value);
                   setFormData((prev) => ({
                     ...prev,
                     phoneNumber: val,
@@ -348,22 +450,10 @@ export default function RegisterPage() {
                     return next;
                   });
                 }}
-                onFocus={(e) => {
-                  const len = e.target.value.length;
-                  e.target.setSelectionRange(len, len);
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Backspace') {
-                    const target = e.currentTarget;
-                    if (target.selectionStart === 0 && target.selectionEnd === 0 && target.value.length > 0) {
-                      const len = target.value.length;
-                      target.setSelectionRange(len, len);
-                    }
-                  }
-                }}
                 dir="ltr"
-                style={{ textAlign: 'left', paddingLeft: formData.phoneNumber ? '2.5rem' : '1rem' }}
-                inputMode="tel"
+                style={{ paddingLeft: formData.phoneNumber ? '2.5rem' : '1.25rem' }}
+                inputMode="numeric"
+                autoComplete="tel"
               />
 
               {formData.phoneNumber && (
@@ -405,7 +495,9 @@ export default function RegisterPage() {
                   ✕
                 </button>
               )}
+              </div>
             </div>
+            {errors.countryDial && <p className="form-error">{errors.countryDial}</p>}
             {errors.phoneNumber && <p className="form-error">{errors.phoneNumber}</p>}
 
             {/* WhatsApp toggle */}
@@ -446,13 +538,20 @@ export default function RegisterPage() {
                 <input
                   id="whatsappNumber"
                   type="tel"
-                  className={`form-input ${errors.whatsappNumber ? 'form-input-error' : ''}`}
-                  placeholder="01XXXXXXXXX"
+                  className={`form-input form-input-phone ${errors.whatsappNumber ? 'form-input-error' : ''}`}
+                  placeholder={isAbroad ? 'رقم الواتساب' : '01XXXXXXXXX'}
                   value={formData.whatsappNumber}
-                  onChange={(e) => updateField('whatsappNumber', e.target.value)}
+                  onChange={(e) =>
+                    updateField(
+                      'whatsappNumber',
+                      isAbroad
+                        ? sanitizeNationalPhoneInput(e.target.value)
+                        : sanitizePhoneInput(e.target.value)
+                    )
+                  }
                   dir="ltr"
-                  style={{ textAlign: 'left' }}
-                  inputMode="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                 />
                 {errors.whatsappNumber && <p className="form-error">{errors.whatsappNumber}</p>}
               </div>
@@ -460,7 +559,7 @@ export default function RegisterPage() {
           </div>
         );
 
-      case 3: // Payment Screenshot
+      case STEP_PAYMENT:
         return (
           <div className="fade-in">
             <label className="form-label">صورة إيصال الدفع</label>
@@ -470,7 +569,9 @@ export default function RegisterPage() {
               marginBottom: '1rem',
               lineHeight: 1.6,
             }}>
-              التقط صورة لإيصال الدفع من تطبيق InstaPay أو اختر من المعرض
+              {selectedTrack?.usesInstapay === false
+                ? 'التقط صورة لإيصال التحويل بالدولار أو اختر من المعرض'
+                : 'التقط صورة لإيصال الدفع من تطبيق InstaPay أو اختر من المعرض'}
             </p>
 
             {!previewUrl ? (
@@ -579,44 +680,50 @@ export default function RegisterPage() {
   // Check if current step is valid for enabling next button
   const isStepValid = (): boolean => {
     switch (currentStep) {
-      case 0: return isValidName(formData.fullName);
-      case 1:
+      case STEP_TRACK:
+        return Boolean(formData.track);
+      case STEP_FEES:
+        return Boolean(formData.track);
+      case STEP_NAME:
+        return isValidName(formData.fullName);
+      case STEP_CHURCH:
         return formData.church.trim().length > 0;
-      case 2:
-        const phoneValid = isValidEgyptianPhone(formData.phoneNumber);
-        if (!formData.sameAsPhone) {
-          return phoneValid && isValidEgyptianPhone(formData.whatsappNumber);
-        }
-        return phoneValid;
-      case 3: return formData.paymentScreenshot !== null;
-      default: return false;
+      case STEP_PHONE:
+        if (!isPhoneValid(formData, 'phone')) return false;
+        if (!formData.sameAsPhone && !isPhoneValid(formData, 'whatsapp')) return false;
+        return true;
+      case STEP_PAYMENT:
+        return formData.paymentScreenshot !== null;
+      default:
+        return false;
     }
   };
 
   return (
     <>
       <Header />
-      <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+      <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '2rem 1rem' }}>
       <div className="container-mobile">
         {/* Step Indicator */}
         <StepIndicator currentStep={currentStep} />
 
         {/* Card */}
         <div className="glass-card" style={{ padding: '2rem 1.5rem' }}>
-          <div style={{ textAlign: 'center', marginBottom: '1rem' }}>
+          {selectedTrack && currentStep !== STEP_TRACK && currentStep !== STEP_FEES && (
+          <div className="pay-recall-wrap">
             <button
               type="button"
-              onClick={() => setShowInstructionsModal(true)}
-              className="btn btn-ghost"
-              style={{ fontSize: '0.8125rem', color: '#fbba33', padding: '0.4rem 0.8rem', background: 'rgba(242, 158, 19, 0.1)', border: '1px solid rgba(242, 158, 19, 0.25)', borderRadius: '0.625rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+              onClick={() => setCurrentStep(STEP_FEES)}
+              className="pay-recall"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <rect x="2" y="5" width="20" height="14" rx="2" />
                 <line x1="2" y1="10" x2="22" y2="10" />
               </svg>
-              <span>تعليمات ورسوم الدفع (400 EGP / InstaPay)</span>
+              <span>تعليمات الدفع</span>
             </button>
           </div>
+          )}
 
           {/* Step Title */}
           <StepTitle step={currentStep} total={WIZARD_STEPS.length} />
@@ -639,22 +746,17 @@ export default function RegisterPage() {
           )}
 
           {/* Navigation Buttons */}
-          <div style={{
-            display: 'flex',
-            gap: '0.75rem',
-            marginTop: '2rem',
-            flexDirection: currentStep > 0 ? 'row-reverse' : 'column',
-          }}>
+          <div className="wizard-nav">
             {isLastStep ? (
               <button
-                className="btn btn-accent btn-full"
+                className="btn btn-accent"
                 onClick={handleSubmit}
                 disabled={!isStepValid() || isSubmitting}
               >
                 {isSubmitting ? (
                   <>
-                    <span className="spinner" />
-                    <span>جاري الإرسال...</span>
+                    <span className="spinner spinner-gold" />
+                    <span>جاري الإرسال</span>
                   </>
                 ) : (
                   <span>إرسال التسجيل</span>
@@ -662,14 +764,14 @@ export default function RegisterPage() {
               </button>
             ) : (
               <button
-                className="btn btn-primary btn-full"
+                className="btn btn-primary"
                 onClick={goNext}
                 disabled={!isStepValid() || checkingPhone}
               >
                 {checkingPhone ? (
                   <>
-                    <span className="spinner" />
-                    <span>جاري التحقق من الرقم...</span>
+                    <span className="spinner spinner-gold" />
+                    <span>جاري التحقق</span>
                   </>
                 ) : (
                   <>
@@ -685,10 +787,10 @@ export default function RegisterPage() {
 
             {currentStep > 0 && (
               <button
+                type="button"
                 className="btn btn-ghost"
                 onClick={goBack}
                 disabled={isSubmitting}
-                style={{ flex: '0 0 auto' }}
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M5 12h14" />
@@ -701,12 +803,6 @@ export default function RegisterPage() {
         </div>
       </div>
     </main>
-
-      <PaymentInstructionsModal
-        isOpen={showInstructionsModal}
-        onClose={() => setShowInstructionsModal(false)}
-        onProceed={() => setShowInstructionsModal(false)}
-      />
     </>
   );
 }
