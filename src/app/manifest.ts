@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'نظام تسجيل دورة التاريخ الكنسي — مركز البابا شنودة',
     start_url: '/',
     display: 'standalone',
-    background_color: '#1a1208',
-    theme_color: '#1a1208',
+    background_color: '#000000',
+    theme_color: '#000000',
     lang: 'ar',
     dir: 'rtl',
     icons: [
