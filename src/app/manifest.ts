@@ -1,0 +1,29 @@
+import type { MetadataRoute } from 'next';
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: 'مركز البابا شنودة للتاريخ الكنسي',
+    short_name: 'مركز شنودة',
+    description: 'نظام تسجيل دورة التاريخ الكنسي — مركز البابا شنودة',
+    start_url: '/',
+    display: 'standalone',
+    background_color: '#1a1208',
+    theme_color: '#1a1208',
+    lang: 'ar',
+    dir: 'rtl',
+    icons: [
+      {
+        src: '/icon.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icon.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+  };
+}

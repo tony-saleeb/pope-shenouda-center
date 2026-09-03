@@ -7,8 +7,17 @@ export const metadata: Metadata = {
   metadataBase: new URL('https://pope-shenouda-center.vercel.app'),
   title: "دورة التاريخ الكنسي | مركز البابا شنودة",
   description:
-    "نظام تسجيل الحضور لدورة مركز البابا شنودة للتاريخ الكنسي — سجّل الآن واحصل على تذكرتك الإلكترونية",
+    "نظام تسجيل الحضور لدورة مركز البابا شنودة للتاريخ الكنسي",
   applicationName: "مركز البابا شنودة للتاريخ الكنسي",
+  icons: {
+    icon: [{ url: '/icon.png', type: 'image/png', sizes: '512x512' }],
+    apple: [{ url: '/apple-icon.png', type: 'image/png', sizes: '180x180' }],
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'مركز شنودة',
+    statusBarStyle: 'black-translucent',
+  },
   openGraph: {
     type: "website",
     locale: "ar_EG",
@@ -16,7 +25,7 @@ export const metadata: Metadata = {
     siteName: "مركز البابا شنودة للتاريخ الكنسي",
     title: "دورة التاريخ الكنسي | مركز البابا شنودة",
     description:
-      "سجّل في دورة مركز البابا شنودة للتاريخ الكنسي واحصل على تذكرتك الإلكترونية",
+      "نظام تسجيل دورة مركز البابا شنودة للتاريخ الكنسي",
   },
 };
 
