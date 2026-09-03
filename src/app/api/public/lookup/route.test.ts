@@ -7,7 +7,7 @@ vi.mock('@/lib/firebase/admin', () => ({
 }));
 
 vi.mock('@/lib/whatsapp/api', () => ({
-  sendAutomatedWhatsAppTicket: vi.fn().mockResolvedValue({ success: true }),
+  sendAutomatedWhatsAppTicket: vi.fn().mockResolvedValue({ sent: true }),
 }));
 
 vi.mock('@/lib/ratelimit', () => ({
@@ -19,6 +19,22 @@ vi.mock('@/lib/ratelimit', () => ({
 
 import { getAdminDb } from '@/lib/firebase/admin';
 import { sendAutomatedWhatsAppTicket } from '@/lib/whatsapp/api';
+
+function mockDb(registrantTrack: string) {
+  (getAdminDb as any).mockReturnValue({
+    collection: (name: string) => ({
+      doc: (id: string) => ({
+        get: vi.fn().mockResolvedValue(
+          name === 'phoneIndex'
+            ? { exists: true, data: () => ({ registrantId: 'reg-456' }) }
+            : name === 'registrants'
+              ? { exists: true, data: () => ({ track: registrantTrack }) }
+              : { exists: false }
+        ),
+      }),
+    }),
+  });
+}
 
 describe('POST /api/public/lookup', () => {
   beforeEach(() => {
@@ -59,17 +75,8 @@ describe('POST /api/public/lookup', () => {
     expect(sendAutomatedWhatsAppTicket).not.toHaveBeenCalled();
   });
 
-  it('returns 200 and registrantId when phone exists', async () => {
-    (getAdminDb as any).mockReturnValue({
-      collection: () => ({
-        doc: () => ({
-          get: vi.fn().mockResolvedValue({
-            exists: true,
-            data: () => ({ registrantId: 'reg-456' }),
-          }),
-        }),
-      }),
-    });
+  it('sends WhatsApp for onsite (انتظامي) track', async () => {
+    mockDb('onsite_exam_onsite');
 
     const req = new NextRequest('http://localhost/api/public/lookup', {
       method: 'POST',
@@ -81,7 +88,25 @@ describe('POST /api/public/lookup', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
+    expect(json.attendanceQrIssued).toBe(true);
     expect(json.registrantId).toBe('reg-456');
     expect(sendAutomatedWhatsAppTicket).toHaveBeenCalledWith('01012345678', 'reg-456');
+  });
+
+  it('does not send WhatsApp for non-onsite tracks', async () => {
+    mockDb('online_exam_onsite');
+
+    const req = new NextRequest('http://localhost/api/public/lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: '01012345678' }),
+    });
+
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.success).toBe(true);
+    expect(json.attendanceQrIssued).toBe(false);
+    expect(sendAutomatedWhatsAppTicket).not.toHaveBeenCalled();
   });
 });

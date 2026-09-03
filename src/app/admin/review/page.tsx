@@ -8,7 +8,7 @@ import {
 import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
 import type { Registrant } from '@/lib/types';
-import { formatTrackTitle, getTrack } from '@/lib/registrationTracks';
+import { formatTrackTitle, getTrack, trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
 import { safeImageSrc } from '@/lib/validation';
@@ -99,12 +99,18 @@ export default function ReviewPage() {
         const resData = await response.json();
         if (action === 'approve') {
           setApprovedItems((prev) => new Set(prev).add(registrantId));
-          if (resData.whatsappSent) {
-            setNotification({ message: '✓ تم قبول الطلب وإرسال التذكرة تلقائياً عبر البوت!', type: 'success' });
-          } else if (targetItem) {
-            // Auto-launch WhatsApp Web / App with pre-filled ticket message
-            window.open(getWhatsAppUrl(targetItem), '_blank');
-            setNotification({ message: '✓ تم فتح الواتساب لإرسال التذكرة!', type: 'info' });
+          if (resData.attendanceQrIssued) {
+            if (resData.whatsappSent) {
+              setNotification({ message: '✓ تم قبول الطلب وإرسال كود الحضور تلقائياً عبر البوت!', type: 'success' });
+            } else if (targetItem) {
+              window.open(getWhatsAppUrl(targetItem), '_blank');
+              setNotification({ message: '✓ تم فتح الواتساب لإرسال كود الحضور!', type: 'info' });
+            }
+          } else {
+            setNotification({
+              message: '✓ تم قبول الطلب (بدون كود حضور — المسار ليس انتظامي)',
+              type: 'success',
+            });
           }
           setTimeout(() => setNotification(null), 4000);
         } else {
@@ -470,15 +476,14 @@ export default function ReviewPage() {
                   })()}
                 </div>
 
-                {/* Action Buttons or Permanent WhatsApp Share */}
+                {/* Action Buttons or WhatsApp share for onsite (انتظامي) track */}
                 {isApproved ? (
-                  /* Approved — WhatsApp button is ALWAYS accessible */
                   <div style={{ marginTop: '1.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                    {trackRequiresAttendanceQr(item.data.track) && (
                       <a
                         href={getWhatsAppUrl(item)}
                         target="_blank" rel="noopener noreferrer"
-                        style={{ flex: 1, textDecoration: 'none', display: 'block' }}
+                        style={{ display: 'block', textDecoration: 'none', marginBottom: activeTab === 'pending' ? '0.75rem' : 0 }}
                       >
                         <button className="btn btn-success btn-full" style={{
                           padding: '0.75rem',
@@ -493,25 +498,25 @@ export default function ReviewPage() {
                           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
                           </svg>
-                          <span>إرسال التذكرة على واتساب</span>
+                          <span>إرسال كود الحضور على واتساب</span>
                         </button>
                       </a>
-
-                      {activeTab === 'pending' && (
-                        <button
-                          className="btn btn-ghost"
-                          onClick={() => dismissApproved(item.id)}
-                          style={{
-                            padding: '0.75rem 1.25rem',
-                            border: '1px solid rgba(242, 158, 19, 0.2)',
-                            color: 'rgba(247, 240, 228, 0.6)',
-                            fontSize: '0.875rem',
-                          }}
-                        >
-                          تخطي
-                        </button>
-                      )}
-                    </div>
+                    )}
+                    {activeTab === 'pending' && (
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => dismissApproved(item.id)}
+                        style={{
+                          width: '100%',
+                          padding: '0.75rem 1.25rem',
+                          border: '1px solid rgba(242, 158, 19, 0.2)',
+                          color: 'rgba(247, 240, 228, 0.6)',
+                          fontSize: '0.875rem',
+                        }}
+                      >
+                        تخطي
+                      </button>
+                    )}
                   </div>
                 ) : (
                   /* Pending — show approve/reject */

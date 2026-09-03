@@ -8,6 +8,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
 import { cairoDateKey } from '@/lib/eventDays';
 import { hasCheckInOnDay } from '@/lib/gateCheckIns';
+import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 
 /** Max allowed qrToken length — reject unbounded input before it reaches HMAC. */
 const MAX_QR_TOKEN_LENGTH = 512;
@@ -142,6 +143,10 @@ export async function POST(request: NextRequest) {
       const regSnap = await transaction.get(regRef);
       const regData = regSnap.data();
 
+      if (!trackRequiresAttendanceQr(regData?.track)) {
+        return { type: 'not_applicable' as const };
+      }
+
       const registrantName = regData?.fullName || ticketData.registrantName || 'زائر';
       const church = regData?.church || ticketData.church || '';
 
@@ -237,6 +242,16 @@ export async function POST(request: NextRequest) {
             messageAr: 'التذكرة غير موجودة في النظام',
           },
           { status: 404 }
+        );
+
+      case 'not_applicable':
+        return NextResponse.json(
+          {
+            type: 'invalid_ticket',
+            message: 'Attendance QR not applicable for this track',
+            messageAr: 'كود الحضور (QR) متاح فقط لمسار الانتظامي — الحضور في المركز',
+          },
+          { status: 403 }
         );
     }
   } catch (error) {

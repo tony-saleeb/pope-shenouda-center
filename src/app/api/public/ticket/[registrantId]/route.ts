@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
+import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 
 /** Rate limiter for public ticket endpoint: 30 requests per minute per IP. */
 const ticketLimiter = getLimiter('public-ticket', 30, '1 m');
@@ -40,6 +41,16 @@ export async function GET(
         {
           error: 'Not approved',
           messageAr: 'التسجيل غير مقبول بعد — التذكرة تظهر فقط للطلبات المقبولة',
+        },
+        { status: 403, headers: { 'Cache-Control': 'no-store' } }
+      );
+    }
+
+    if (!trackRequiresAttendanceQr(regData.track)) {
+      return NextResponse.json(
+        {
+          error: 'Attendance QR not applicable',
+          messageAr: 'كود الحضور (QR) متاح فقط لمسار الانتظامي — الحضور في المركز',
         },
         { status: 403, headers: { 'Cache-Control': 'no-store' } }
       );
