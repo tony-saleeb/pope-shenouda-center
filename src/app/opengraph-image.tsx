@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export const alt = 'دورة التاريخ الكنسي | مركز البابا شنودة للتاريخ الكنسي';
+export const alt = 'مركز البابا شنودة للتاريخ الكنسي';
 export const size = {
   width: 1200,
   height: 630,
@@ -22,11 +22,16 @@ export default async function Image() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'linear-gradient(145deg, #1a1208 0%, #3d2105 48%, #130c05 100%)',
-          border: '28px solid #d4af6a',
+          background: '#1a1208',
         }}
       >
-        <img src={logoSrc} width={520} height={520} alt="" />
+        <img
+          src={logoSrc}
+          width={420}
+          height={420}
+          style={{ objectFit: 'contain' }}
+          alt=""
+        />
       </div>
     ),
     {
