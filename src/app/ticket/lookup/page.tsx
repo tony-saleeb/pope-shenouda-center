@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { isValidEgyptianPhone, normalizePhone, VALIDATION_MESSAGES } from '@/lib/validation';
+import { resolveLookupPhoneId, sanitizePhoneInput, VALIDATION_MESSAGES } from '@/lib/validation';
 import Link from 'next/link';
 import Header from '@/components/Header';
 
@@ -23,14 +23,14 @@ export default function TicketLookupPage() {
     setNotFoundError(null);
     setFoundRegistrantId(null);
 
-    const normalized = normalizePhone(phone);
+    const normalized = resolveLookupPhoneId(phone);
 
-    if (!normalized) {
+    if (!phone.trim()) {
       setError(VALIDATION_MESSAGES.phoneRequired);
       return;
     }
 
-    if (!isValidEgyptianPhone(normalized)) {
+    if (!normalized) {
       setError(VALIDATION_MESSAGES.phoneInvalid);
       return;
     }
@@ -171,16 +171,16 @@ export default function TicketLookupPage() {
                 <input
                   id="phone"
                   type="tel"
-                  className={`form-input ${error ? 'form-input-error' : ''}`}
+                  className={`form-input form-input-phone ${error ? 'form-input-error' : ''}`}
                   placeholder="01XXXXXXXXX"
                   value={phone}
                   onChange={(e) => {
-                    setPhone(e.target.value);
+                    setPhone(sanitizePhoneInput(e.target.value, 15));
                     setError(null);
                   }}
                   dir="ltr"
-                  style={{ textAlign: 'left' }}
-                  inputMode="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   autoFocus
                 />
                 {error && <p className="form-error">{error}</p>}

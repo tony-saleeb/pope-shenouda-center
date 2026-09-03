@@ -1,4 +1,5 @@
 import { formatEgyptianPhone } from '../utils/formatters';
+import { attendanceQrApprovedMessage } from '../whatsapp/templates';
 
 const FALLBACK_ORIGIN = 'https://pope-shenouda-center.vercel.app';
 
@@ -6,7 +7,7 @@ function resolveAppOrigin(explicit?: string): string {
   if (explicit) return explicit.replace(/\/$/, '');
   if (typeof window !== 'undefined') return window.location.origin;
 
-  const fromEnv = process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const fromEnv = process.env.NEXT_PUBLIC_APP_URL;
   if (fromEnv) {
     return fromEnv.startsWith('http') ? fromEnv.replace(/\/$/, '') : `https://${fromEnv}`;
   }
@@ -21,11 +22,7 @@ export function getWhatsAppTicketUrl(registrantId: string, phone: string, baseUr
   const origin = resolveAppOrigin(baseUrl);
   const ticketUrl = `${origin}/ticket/${registrantId}`;
 
-  const messageText =
-    `تم قبول تسجيلك في دورة التاريخ الكنسي بنجاح ✓\n\n` +
-    `رابط تذكرتك:\n${ticketUrl}\n\n` +
-    `للانضمام لجروب الدورة على واتساب، يرجى طلب الانضمام من خلال الرابط التالي:\nhttps://chat.whatsapp.com/LjFzmby813CH21gR4Ayxsw?s=cl&p=i&ilr=4&amv=1\n\n` +
-    `يرجى إظهار التذكرة عند الدخول.`;
+  const messageText = attendanceQrApprovedMessage(ticketUrl);
 
   const encodedText = encodeURIComponent(messageText);
   const cleanPhone = formatEgyptianPhone(phone);
@@ -42,11 +39,7 @@ export async function sendAutomatedWhatsAppTicket(
 ): Promise<{ sent: boolean; provider?: string; error?: string }> {
   const cleanPhone = formatEgyptianPhone(phoneNumber);
   const ticketUrl = `${resolveAppOrigin(baseUrl)}/ticket/${registrantId}`;
-  const messageText =
-    `تم قبول تسجيلك في دورة التاريخ الكنسي بنجاح ✓\n\n` +
-    `رابط تذكرتك:\n${ticketUrl}\n\n` +
-    `للانضمام لجروب الدورة على واتساب، يرجى طلب الانضمام من خلال الرابط التالي:\nhttps://chat.whatsapp.com/LjFzmby813CH21gR4Ayxsw?s=cl&p=i&ilr=4&amv=1\n\n` +
-    `يرجى إظهار التذكرة عند الدخول.`;
+  const messageText = attendanceQrApprovedMessage(ticketUrl);
 
   // 1. Check Green API
   const greenInstance = process.env.GREENAPI_INSTANCE_ID;

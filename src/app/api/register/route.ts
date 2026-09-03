@@ -12,10 +12,14 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import {
   isValidEgyptianPhone,
+  isValidInternationalPhone,
   isValidName,
   normalizePhone,
+  sanitizeNationalPhoneInput,
   VALIDATION_MESSAGES,
 } from '@/lib/validation';
+import { isKnownDialCode } from '@/lib/countries';
+import { isRegistrationTrack, TRACKS } from '@/lib/registrationTracks';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
 
 export const runtime = 'nodejs';
@@ -80,6 +84,8 @@ export async function POST(request: NextRequest) {
     const churchRaw = form.get('church');
     const phoneRaw = form.get('phoneNumber');
     const whatsappRaw = form.get('whatsappNumber');
+    const trackRaw = form.get('track');
+    const countryDialRaw = form.get('countryDial');
     const screenshot = form.get('screenshot');
 
     if (typeof fullNameRaw !== 'string' || typeof churchRaw !== 'string') {
@@ -88,6 +94,13 @@ export async function POST(request: NextRequest) {
     if (typeof phoneRaw !== 'string' || typeof whatsappRaw !== 'string') {
       return badRequest(VALIDATION_MESSAGES.phoneRequired);
     }
+    if (typeof trackRaw !== 'string' || !isRegistrationTrack(trackRaw)) {
+      return badRequest(VALIDATION_MESSAGES.trackRequired);
+    }
+
+    const track = TRACKS[trackRaw];
+    const isAbroad = track.id === 'abroad';
+    const countryDial = typeof countryDialRaw === 'string' ? countryDialRaw.trim() : '';
 
     const fullName = fullNameRaw.trim().replace(/\s+/g, ' ');
     const church = churchRaw.trim().replace(/\s+/g, ' ');
@@ -99,14 +112,30 @@ export async function POST(request: NextRequest) {
       return badRequest(VALIDATION_MESSAGES.churchRequired);
     }
 
-    const phoneNumber = normalizePhone(phoneRaw);
-    if (!isValidEgyptianPhone(phoneNumber)) {
-      return badRequest(VALIDATION_MESSAGES.phoneInvalid);
-    }
+    let phoneNumber: string;
+    let whatsappNumber: string;
 
-    const whatsappNumber = normalizePhone(whatsappRaw);
-    if (!isValidEgyptianPhone(whatsappNumber)) {
-      return badRequest(VALIDATION_MESSAGES.whatsappInvalid);
+    if (isAbroad) {
+      if (!isKnownDialCode(countryDial)) {
+        return badRequest(VALIDATION_MESSAGES.countryRequired);
+      }
+      if (!isValidInternationalPhone(countryDial, phoneRaw)) {
+        return badRequest(VALIDATION_MESSAGES.intlPhoneInvalid);
+      }
+      phoneNumber = `${countryDial}${sanitizeNationalPhoneInput(phoneRaw)}`;
+      if (!isValidInternationalPhone(countryDial, whatsappRaw)) {
+        return badRequest(VALIDATION_MESSAGES.intlPhoneInvalid);
+      }
+      whatsappNumber = `${countryDial}${sanitizeNationalPhoneInput(whatsappRaw)}`;
+    } else {
+      phoneNumber = normalizePhone(phoneRaw);
+      if (!isValidEgyptianPhone(phoneNumber)) {
+        return badRequest(VALIDATION_MESSAGES.phoneInvalid);
+      }
+      whatsappNumber = normalizePhone(whatsappRaw);
+      if (!isValidEgyptianPhone(whatsappNumber)) {
+        return badRequest(VALIDATION_MESSAGES.whatsappInvalid);
+      }
     }
 
     if (!(screenshot instanceof File) || screenshot.size === 0) {
@@ -141,6 +170,10 @@ export async function POST(request: NextRequest) {
           phoneNumber,
           whatsappNumber,
           church,
+          track: track.id,
+          feeAmount: track.amount,
+          feeCurrency: track.currency,
+          countryDial: isAbroad ? countryDial : null,
           paymentScreenshotUrl,
           status: 'pending_verification',
           ocrStatus: 'queued',

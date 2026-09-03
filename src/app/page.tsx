@@ -1,20 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import Header from '@/components/Header';
-import PaymentInstructionsModal from '@/components/PaymentInstructionsModal';
 
 export default function HomePage() {
   const router = useRouter();
-  const [showInstructionsModal, setShowInstructionsModal] = useState(false);
 
   return (
     <>
       <Header />
       <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
-      {/* Hero Section */}
       <div style={{ textAlign: 'center', maxWidth: '32rem', margin: '0 auto' }}>
         <div style={{
           width: '16rem',
@@ -39,7 +35,6 @@ export default function HomePage() {
           />
         </div>
 
-        {/* Title */}
         <h1 style={{
           fontSize: 'clamp(2rem, 5vw, 3rem)',
           fontWeight: 900,
@@ -68,10 +63,10 @@ export default function HomePage() {
           احرص على رفع صورة إيصال الدفع البنكي لإتمام التسجيل
         </p>
 
-        {/* Primary Action Card */}
         <div style={{ display: 'grid', gap: '1rem', marginBottom: '2.5rem' }}>
           <button
-            onClick={() => setShowInstructionsModal(true)}
+            type="button"
+            onClick={() => router.push('/register')}
             className="btn btn-primary btn-lg btn-full"
             style={{
               display: 'flex',
@@ -91,14 +86,6 @@ export default function HomePage() {
         </div>
       </div>
     </main>
-
-      <PaymentInstructionsModal
-        isOpen={showInstructionsModal}
-        onClose={() => setShowInstructionsModal(false)}
-        onProceed={() => {
-          router.push('/register');
-        }}
-      />
     </>
   );
 }

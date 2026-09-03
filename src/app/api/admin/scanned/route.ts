@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
 import { expandTicketCheckIns } from '@/lib/gateCheckIns';
+import { cairoDateKey, mergeSessionDays } from '@/lib/eventDays';
 
 export const runtime = 'nodejs';
 
@@ -11,8 +12,7 @@ function asString(value: unknown): string {
 }
 
 /**
- * Gate check-ins for the admin scanned tab.
- * Reads used tickets without QR image blobs, then fills missing names from registrants.
+ * Attendance roster: approved students × Tuesday/Saturday sessions.
  */
 export async function GET(request: NextRequest) {
   const authResult = await requireAdmin(request);
@@ -24,94 +24,80 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getAdminDb();
-    const snapshot = await db
-      .collection('tickets')
-      .where('used', '==', true)
-      .select(
-        'usedAt',
-        'usedByUsherId',
-        'registrantId',
-        'registrantName',
-        'church',
-        'phoneNumber',
-        'checkIns'
-      )
-      .get();
 
-    const items = snapshot.docs.flatMap((docSnap) => {
+    const [registrantsSnap, ticketsSnap] = await Promise.all([
+      db
+        .collection('registrants')
+        .where('status', '==', 'approved')
+        .select('fullName', 'church', 'phoneNumber')
+        .get(),
+      db
+        .collection('tickets')
+        .select(
+          'usedAt',
+          'usedByUsherId',
+          'registrantId',
+          'registrantName',
+          'church',
+          'phoneNumber',
+          'checkIns'
+        )
+        .get(),
+    ]);
+
+    const checkInsByRegistrant = new Map<string, Record<string, string | null>>();
+    const ticketMetaByRegistrant = new Map<
+      string,
+      { registrantName: string; church: string; phoneNumber: string }
+    >();
+
+    for (const docSnap of ticketsSnap.docs) {
       const data = docSnap.data();
       const registrantId = asString(data.registrantId) || docSnap.id;
-      const base = {
-        registrantId,
-        registrantName: asString(data.registrantName),
-        church: asString(data.church),
-        phoneNumber: asString(data.phoneNumber),
-      };
-      const checkIns = expandTicketCheckIns({
+      const rows = expandTicketCheckIns({
         checkIns: data.checkIns,
         usedAt: data.usedAt,
         usedByUsherId: data.usedByUsherId,
       });
-      if (checkIns.length === 0) {
-        return [];
+      const attended: Record<string, string | null> = checkInsByRegistrant.get(registrantId) ?? {};
+      for (const row of rows) {
+        const day = cairoDateKey(row.usedAt);
+        if (!day) continue;
+        attended[day] = row.usedAt;
       }
-      return checkIns.map((entry, index) => ({
-        id: `${docSnap.id}:${entry.usedAt ?? index}`,
-        ...base,
-        usedAt: entry.usedAt,
-        usedByUsherId: entry.usedByUsherId,
-      }));
-    });
-
-    const missingIds = [
-      ...new Set(
-        items
-          .filter((item) => !item.registrantName || !item.church || !item.phoneNumber)
-          .map((item) => item.registrantId)
-          .filter(Boolean)
-      ),
-    ];
-
-    const registrantById = new Map<
-      string,
-      { fullName: string; church: string; phoneNumber: string }
-    >();
-
-    const CHUNK = 100;
-    for (let i = 0; i < missingIds.length; i += CHUNK) {
-      const chunk = missingIds.slice(i, i + CHUNK);
-      const refs = chunk.map((id) => db.collection('registrants').doc(id));
-      const snaps = await db.getAll(...refs);
-      for (const snap of snaps) {
-        if (!snap.exists) continue;
-        const data = snap.data() ?? {};
-        registrantById.set(snap.id, {
-          fullName: asString(data.fullName),
-          church: asString(data.church),
-          phoneNumber: asString(data.phoneNumber),
-        });
-      }
+      checkInsByRegistrant.set(registrantId, attended);
+      ticketMetaByRegistrant.set(registrantId, {
+        registrantName: asString(data.registrantName),
+        church: asString(data.church),
+        phoneNumber: asString(data.phoneNumber),
+      });
     }
 
-    const hydrated = items.map((item) => {
-      const extra = registrantById.get(item.registrantId);
+    const students = registrantsSnap.docs.map((docSnap) => {
+      const data = docSnap.data();
+      const ticketMeta = ticketMetaByRegistrant.get(docSnap.id);
+      const attended = checkInsByRegistrant.get(docSnap.id) ?? {};
       return {
-        ...item,
-        registrantName: item.registrantName || extra?.fullName || '',
-        church: item.church || extra?.church || '',
-        phoneNumber: item.phoneNumber || extra?.phoneNumber || '',
+        id: docSnap.id,
+        registrantId: docSnap.id,
+        registrantName: asString(data.fullName) || ticketMeta?.registrantName || '',
+        church: asString(data.church) || ticketMeta?.church || '',
+        phoneNumber: asString(data.phoneNumber) || ticketMeta?.phoneNumber || '',
+        attended,
+        attendedCount: Object.keys(attended).length,
       };
     });
 
-    hydrated.sort((a, b) => {
-      const aTime = a.usedAt ? Date.parse(a.usedAt) : 0;
-      const bTime = b.usedAt ? Date.parse(b.usedAt) : 0;
-      return bTime - aTime;
-    });
+    students.sort((a, b) => a.registrantName.localeCompare(b.registrantName, 'ar'));
 
-    return NextResponse.json({ items: hydrated });
+    const extraDays = [...new Set(students.flatMap((student) => Object.keys(student.attended)))];
+
+    return NextResponse.json({
+      sessions: mergeSessionDays(extraDays),
+      students,
+    });
   } catch (error) {
-    console.error(`[Admin scanned list] ${correlationId} failed:`, error);
+    console.error(`[Admin attendance list] ${correlationId} failed:`, error);
     return NextResponse.json(
       {
         error: 'Internal server error',

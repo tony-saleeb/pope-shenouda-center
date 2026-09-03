@@ -11,12 +11,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
-import { isValidEgyptianPhone, normalizePhone, VALIDATION_MESSAGES } from '@/lib/validation';
+import { resolveLookupPhoneId, VALIDATION_MESSAGES } from '@/lib/validation';
 import { sendAutomatedWhatsAppTicket } from '@/lib/whatsapp/api';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
 
 /** Anti-enumeration message: identical response returned regardless of registration existence. */
-const ANTI_ENUMERATION_MESSAGE = 'لو الرقم مسجّل عندنا، هيوصلك رابط التذكرة على الواتساب خلال دقائق.';
+const ANTI_ENUMERATION_MESSAGE =
+  'لو الرقم مسجّل عندنا، هيوصلك رابط كود الحضور (QR) على الواتساب خلال دقائق.';
 
 /** Rate limiters: 30 req / 15m per IP, and 15 req / 15m per phone number. */
 const lookupIpLimiter = getLimiter('public-lookup-ip', 30, '15 m');
@@ -40,9 +41,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const normalized = normalizePhone(phone);
+    const normalized = resolveLookupPhoneId(phone);
 
-    if (!isValidEgyptianPhone(normalized)) {
+    if (!normalized) {
       return NextResponse.json(
         { error: 'Invalid phone format', messageAr: VALIDATION_MESSAGES.phoneInvalid },
         { status: 400 }
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
         {
           success: false,
           error: 'Registrant ID missing',
-          messageAr: 'عفواً، لم نتمكن من العثور على بيانات التذكرة لهذا الرقم.',
+          messageAr: 'عفواً، لم نتمكن من العثور على بيانات كود الحضور لهذا الرقم.',
         },
         { status: 404 }
       );
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       registrantId,
-      messageAr: 'تم العثور على حسابك بنجاح! تم إرسال رابط التذكرة إلى الواتساب الخاص بك.',
+      messageAr: 'تم العثور على حسابك بنجاح! تم إرسال رابط كود الحضور (QR) إلى الواتساب الخاص بك.',
     });
   } catch (error) {
     console.error('[Public Lookup] Error:', error);

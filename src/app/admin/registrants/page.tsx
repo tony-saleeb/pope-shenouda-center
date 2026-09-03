@@ -8,6 +8,7 @@ import type { RegistrantStatus } from '@/lib/types';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
 import { matchesAdminSearch, safeImageSrc } from '@/lib/validation';
+import { formatTrackTitle, getTrack } from '@/lib/registrationTracks';
 import Papa from 'papaparse';
 
 interface RegistrantItem {
@@ -17,6 +18,9 @@ interface RegistrantItem {
   whatsappNumber: string;
   church: string;
   status: RegistrantStatus;
+  track: string;
+  feeAmount: number | null;
+  feeCurrency: string;
   ocrExtractedReference: string | null;
   createdAt: string | null;
 }
@@ -144,7 +148,7 @@ export default function RegistrantsPage() {
     return items.filter((item) => {
       if (statusFilter && item.status !== statusFilter) return false;
       return matchesAdminSearch(
-        [item.fullName, item.phoneNumber, item.whatsappNumber, item.church],
+        [item.fullName, item.phoneNumber, item.whatsappNumber, item.church, getTrack(item.track) ? formatTrackTitle(getTrack(item.track)!) : ''],
         searchTerm
       );
     });
@@ -153,6 +157,10 @@ export default function RegistrantsPage() {
   const handleExportCSV = () => {
     const csvData = filteredItems.map((item) => ({
       'الاسم الكامل': item.fullName,
+      'نوع التسجيل': getTrack(item.track) ? formatTrackTitle(getTrack(item.track)!) : '',
+      'الرسوم': item.feeAmount != null
+        ? `${item.feeAmount} ${item.feeCurrency === 'USD' ? 'USD' : 'EGP'}`
+        : '',
       'الكنيسة': item.church,
       'رقم الموبايل': item.phoneNumber ? `="${item.phoneNumber}"` : '',
       'رقم الواتساب': (item.whatsappNumber || item.phoneNumber) ? `="${item.whatsappNumber || item.phoneNumber}"` : '',
@@ -423,6 +431,7 @@ export default function RegistrantsPage() {
               <thead>
                 <tr style={{ background: 'rgba(12, 7, 3, 0.7)', borderBottom: '1px solid rgba(242, 158, 19, 0.18)' }}>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>الاسم الكامل</th>
+                  <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>نوع التسجيل</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>الكنيسة</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>رقم الموبايل</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>حالة الطلب</th>
@@ -446,6 +455,9 @@ export default function RegistrantsPage() {
                       }}
                     >
                       <td style={{ fontWeight: 700, color: '#f7f0e4', padding: '1rem 1.25rem' }}>{item.fullName}</td>
+                      <td style={{ color: 'rgba(247, 240, 228, 0.8)', padding: '1rem 1.25rem' }}>
+                        {getTrack(item.track) ? formatTrackTitle(getTrack(item.track)!) : '—'}
+                      </td>
                       <td style={{ color: 'rgba(247, 240, 228, 0.8)', padding: '1rem 1.25rem' }}>{item.church}</td>
                       <td dir="ltr" style={{ textAlign: 'right', color: 'rgba(247, 240, 228, 0.85)', padding: '1rem 1.25rem', fontFamily: 'monospace' }}>
                         {item.phoneNumber}

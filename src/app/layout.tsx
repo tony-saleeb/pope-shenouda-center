@@ -4,16 +4,27 @@ import { AuthProvider } from "@/lib/auth/context";
 import { isFirebaseConfigured } from "@/lib/firebase/client";
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://pope-shenouda-center.vercel.app'),
   title: "دورة التاريخ الكنسي | مركز البابا شنودة",
   description:
     "نظام تسجيل الحضور لدورة مركز البابا شنودة للتاريخ الكنسي — سجّل الآن واحصل على تذكرتك الإلكترونية",
+  applicationName: "مركز البابا شنودة للتاريخ الكنسي",
+  openGraph: {
+    type: "website",
+    locale: "ar_EG",
+    url: "https://pope-shenouda-center.vercel.app",
+    siteName: "مركز البابا شنودة للتاريخ الكنسي",
+    title: "دورة التاريخ الكنسي | مركز البابا شنودة",
+    description:
+      "سجّل في دورة مركز البابا شنودة للتاريخ الكنسي واحصل على تذكرتك الإلكترونية",
+  },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#0f0d3d",
+  themeColor: "#1a1208",
 };
 
 function ConfigWarning() {

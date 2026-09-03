@@ -79,7 +79,7 @@ const STAT_CARDS: StatCardConfig[] = [
   },
   {
     key: 'checkedIn',
-    label: 'المسجلون في البوابة',
+    label: 'تسجيل الحضور',
     color: '#ec4899',
     shareOf: 'approved',
     shareLabel: 'من المقبولين',
