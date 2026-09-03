@@ -2,7 +2,7 @@
 
 import { useEffect, useState, use } from 'react';
 import type { Registrant, Ticket } from '@/lib/types';
-import Header from '@/components/Header';
+import NextImage from 'next/image';
 import Link from 'next/link';
 
 function drawRoundedRectPath(
@@ -57,7 +57,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
         const data: PublicTicketResponse = await res.json();
 
         if (!res.ok) {
-          setError(data.messageAr || 'حدث خطأ في تحميل التذكرة');
+          setError(data.messageAr || 'حدث خطأ في تحميل كود الحضور');
           setLoading(false);
           return;
         }
@@ -82,7 +82,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
         setLoading(false);
       } catch (err) {
         console.error('Error fetching ticket:', err);
-        setError('حدث خطأ في تحميل التذكرة');
+        setError('حدث خطأ في تحميل كود الحضور');
         setLoading(false);
       }
     }
@@ -134,18 +134,30 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
       drawRoundedRectPath(ctx, cardMargin, cardMargin, cardW, cardH, 24);
       ctx.stroke();
 
-      // 3. Header Subtitle & Main Title
+      // 3. Center logo
+      const logoImg = document.createElement('img');
+      logoImg.crossOrigin = 'anonymous';
+      await new Promise<void>((resolve, reject) => {
+        logoImg.onload = () => resolve();
+        logoImg.onerror = () => reject(new Error('Failed to load logo'));
+        logoImg.src = '/logo-shenouda.png';
+      });
+
+      const logoSize = 76;
+      ctx.drawImage(logoImg, (width - logoSize) / 2, 36, logoSize, logoSize);
+
+      // 4. Header subtitle & main title
       ctx.fillStyle = 'rgba(247, 240, 228, 0.65)';
       ctx.font = '600 17px system-ui, -apple-system, sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('تذكرة دخول', width / 2, 75);
+      ctx.fillText('رمز QR للحضور', width / 2, 128);
 
       ctx.fillStyle = '#f7f0e4';
       ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
-      ctx.fillText('دورة التاريخ الكنسي', width / 2, 118);
+      ctx.fillText('دورة التاريخ الكنسي', width / 2, 165);
 
-      // 4. QR Code Box (Solid White Card filling QR code edge to edge)
-      const qrImg = new Image();
+      // 5. QR code box (solid white card)
+      const qrImg = document.createElement('img');
       qrImg.crossOrigin = 'anonymous';
 
       await new Promise<void>((resolve, reject) => {
@@ -156,7 +168,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
 
       const qrBoxSize = 340;
       const qrBoxX = (width - qrBoxSize) / 2;
-      const qrBoxY = 155;
+      const qrBoxY = 190;
 
       // White QR Container Card
       ctx.fillStyle = '#ffffff';
@@ -216,7 +228,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
       // 7. Footer Note
       ctx.fillStyle = 'rgba(247, 240, 228, 0.55)';
       ctx.font = '600 14px system-ui, -apple-system, sans-serif';
-      ctx.fillText('يرجى إظهار هذه التذكرة عند الدخول', width / 2, 855);
+      ctx.fillText('يرجى إظهار رمز QR للحضور عند الدخول', width / 2, 855);
 
       // Convert to blob and trigger download / share
       canvas.toBlob((blob) => {
@@ -270,7 +282,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
       <main style={{ position: 'relative', zIndex: 1, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
           <div className="spinner spinner-lg" style={{ margin: '0 auto 1.5rem', borderTopColor: 'var(--color-accent-400)' }} />
-          <p style={{ color: 'rgba(255,255,255,0.5)' }}>جاري تحميل التذكرة...</p>
+          <p style={{ color: 'rgba(255,255,255,0.5)' }}>جاري تحميل كود الحضور...</p>
         </div>
       </main>
     );
@@ -297,14 +309,20 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
 
   return (
     <>
-      <Header />
-      <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+      <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
         <div className="container-mobile" style={{ maxWidth: '24rem' }}>
           <div className="glass-card" style={{ padding: '2rem 1.5rem', textAlign: 'center' }}>
-            {/* Ticket Header */}
-            <div style={{ marginBottom: '1.5rem' }}>
+            <div style={{ marginBottom: '1.25rem' }}>
+              <NextImage
+                src="/logo-shenouda.png"
+                alt="مركز البابا شنودة للتاريخ الكنسي"
+                width={88}
+                height={88}
+                style={{ width: '5.5rem', height: 'auto', margin: '0 auto 0.75rem', objectFit: 'contain' }}
+                priority
+              />
               <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.25rem' }}>
-                تذكرة دخول
+                رمز QR للحضور
               </p>
               <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>دورة التاريخ الكنسي</h1>
             </div>
@@ -392,13 +410,13 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
                     <polyline points="7 10 12 15 17 10" />
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
-                  <span>تحميل التذكرة (صورة)</span>
+                  <span>تحميل رمز الحضور (صورة)</span>
                 </>
               )}
             </button>
 
             <p style={{ fontSize: '0.75rem', color: 'rgba(247, 240, 228, 0.45)', marginTop: '1rem' }}>
-              يرجى إظهار هذه التذكرة عند الدخول
+              يرجى إظهار رمز QR للحضور عند الدخول
             </p>
           </div>
         </div>
