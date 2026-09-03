@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { resolveLookupPhoneId, VALIDATION_MESSAGES } from '@/lib/validation';
+import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 import { sendAutomatedWhatsAppTicket } from '@/lib/whatsapp/api';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
 
@@ -97,6 +98,19 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Public Lookup] Found registrant ${registrantId} for phone ${normalized}`);
 
+    const regSnap = await db.collection('registrants').doc(registrantId).get();
+    const track = regSnap.data()?.track;
+
+    if (!trackRequiresAttendanceQr(track)) {
+      return NextResponse.json({
+        success: true,
+        registrantId,
+        attendanceQrIssued: false,
+        messageAr:
+          'تم التحقق من حسابك. مسار تسجيلك لا يتطلب كود حضور (QR) في المركز.',
+      });
+    }
+
     try {
       await sendAutomatedWhatsAppTicket(normalized, registrantId);
     } catch (sendErr) {
@@ -106,6 +120,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       registrantId,
+      attendanceQrIssued: true,
       messageAr: 'تم العثور على حسابك بنجاح! تم إرسال رابط كود الحضور (QR) إلى الواتساب الخاص بك.',
     });
   } catch (error) {

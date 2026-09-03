@@ -43,6 +43,7 @@ describe('GET /api/public/status/[registrantId]', () => {
       paymentScreenshotUrl: 'https://secret.url/image.png',
       adminNotes: 'Confidential note',
       ocrExtractedAmount: 100,
+      track: 'onsite_exam_onsite',
       createdAt: { toDate: () => new Date('2026-07-26T20:00:00Z') },
     };
 
@@ -69,6 +70,8 @@ describe('GET /api/public/status/[registrantId]', () => {
       fullName: 'John Doe',
       church: 'St. Mark',
       createdAt: '2026-07-26T20:00:00.000Z',
+      track: 'onsite_exam_onsite',
+      attendanceQrRequired: true,
     });
 
     // Ensure PII fields are strictly excluded

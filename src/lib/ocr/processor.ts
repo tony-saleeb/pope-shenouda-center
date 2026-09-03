@@ -1,8 +1,8 @@
 import { getAdminDb } from '@/lib/firebase/admin';
 import { processOcrBatch, OcrRequestItem } from './visionApi';
 import { Firestore, FieldValue } from 'firebase-admin/firestore';
-import { signTicket } from '@/lib/qr/hmac';
-import { generateQrCodeDataUrl } from '@/lib/qr/generator';
+import { stageAttendanceTicketOnBatch } from '@/lib/qr/issueAttendanceTicket';
+import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 
 const AMOUNT_TOLERANCE = 5; // EGP
 
@@ -224,19 +224,12 @@ async function attemptReconciliation(
     matchedRegistrantId: registrantId,
   });
 
-  // Generate QR ticket
-  const qrToken = signTicket(registrantId);
-  const qrImageUrl = await generateQrCodeDataUrl(registrantId);
+  const regSnap = await db.collection('registrants').doc(registrantId).get();
+  const track = regSnap.data()?.track;
 
-  const ticketRef = db.collection('tickets').doc(registrantId);
-  batch.set(ticketRef, {
-    qrToken,
-    qrImageUrl,
-    used: false,
-    usedAt: null,
-    usedByUsherId: null,
-    createdAt: FieldValue.serverTimestamp(),
-  });
+  if (trackRequiresAttendanceQr(track)) {
+    await stageAttendanceTicketOnBatch(batch, db, registrantId);
+  }
 
   await batch.commit();
   return { success: true };

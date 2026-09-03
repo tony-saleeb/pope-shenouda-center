@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
-import { signTicket } from '@/lib/qr/hmac';
 import { FieldValue } from 'firebase-admin/firestore';
-import { generateQrCodeDataUrl } from '@/lib/qr/generator';
+import { stageAttendanceTicketOnBatch } from '@/lib/qr/issueAttendanceTicket';
+import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 
 const AMOUNT_TOLERANCE = 5; // EGP
 
@@ -76,19 +76,9 @@ export async function POST(request: NextRequest) {
         matchedRegistrantId: regDoc.id,
       });
 
-      // Generate ticket QR code
-      const qrToken = signTicket(regDoc.id);
-      const qrDataUrl = await generateQrCodeDataUrl(regDoc.id);
-
-      const ticketRef = db.collection('tickets').doc(regDoc.id);
-      batch.set(ticketRef, {
-        qrToken,
-        qrImageUrl: qrDataUrl,
-        used: false,
-        usedAt: null,
-        usedByUsherId: null,
-        createdAt: FieldValue.serverTimestamp(),
-      });
+      if (trackRequiresAttendanceQr(regData.track)) {
+        await stageAttendanceTicketOnBatch(batch, db, regDoc.id);
+      }
 
       await batch.commit();
       matched++;

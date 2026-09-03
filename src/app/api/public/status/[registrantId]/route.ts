@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
+import { isRegistrationTrack, trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 
 /** Rate limiter for public status endpoint: 30 requests per minute per IP. */
 const statusLimiter = getLimiter('public-status', 30, '1 m');
@@ -34,6 +35,7 @@ export async function GET(
     }
 
     const data = docSnap.data()!;
+    const track = isRegistrationTrack(data.track) ? data.track : null;
 
     // Return ONLY safe public status fields — NEVER expose PII (phoneNumber, whatsappNumber, receipts, etc.)
     return NextResponse.json(
@@ -42,6 +44,8 @@ export async function GET(
         fullName: data.fullName,
         church: data.church,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || null,
+        track,
+        attendanceQrRequired: trackRequiresAttendanceQr(track),
       },
       {
         headers: { 'Cache-Control': 'no-store' },

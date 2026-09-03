@@ -8,7 +8,7 @@ import type { RegistrantStatus } from '@/lib/types';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
 import { matchesAdminSearch, safeImageSrc } from '@/lib/validation';
-import { formatTrackTitle, getTrack } from '@/lib/registrationTracks';
+import { formatTrackTitle, getTrack, trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 import Papa from 'papaparse';
 
 interface RegistrantItem {
@@ -502,11 +502,12 @@ export default function RegistrantsPage() {
                             </svg>
                           </button>
 
-                          {(item.status === 'approved' || item.status === 'auto_approved') && (
+                          {(item.status === 'approved' || item.status === 'auto_approved') &&
+                            trackRequiresAttendanceQr(item.track) && (
                             <a
                               href={getWhatsAppUrl(item)}
                               target="_blank" rel="noopener noreferrer"
-                              title="إرسال التذكرة عبر واتساب"
+                              title="إرسال كود الحضور عبر واتساب"
                               style={{
                                 background: 'rgba(16, 185, 129, 0.12)',
                                 border: '1px solid rgba(16, 185, 129, 0.3)',

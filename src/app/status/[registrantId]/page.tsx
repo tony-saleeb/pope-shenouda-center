@@ -2,25 +2,24 @@
 
 import { useEffect, useState } from 'react';
 import type { Registrant, RegistrantStatus } from '@/lib/types';
+import type { RegistrationTrack } from '@/lib/registrationTracks';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/Header';
 
-// Status configuration with Arabic labels, styles, and SVG icons
-const STATUS_CONFIG: Record<RegistrantStatus, {
-  titleAr: string;
-  descAr: string;
+type StatusVisual = {
   renderIcon: () => React.ReactNode;
   color: string;
   bg: string;
   pulse: boolean;
-}> = {
+};
+
+const STATUS_VISUAL: Record<RegistrantStatus, StatusVisual> = {
   pending_verification: {
-    titleAr: 'تم استلام طلبك بنجاح!',
-    descAr: 'تم استلام بياناتك وإيصال الدفع بنجاح — سيتم مراجعة الإيصال وإرسال التذكرة الإلكترونية (كود QR) مباشرة إلى حساب الواتساب الخاص بك فور التأكيد.',
     renderIcon: () => (
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+        <polyline points="22 4 12 14.01 9 11.01" />
       </svg>
     ),
     color: '#34d399',
@@ -28,8 +27,6 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
     pulse: true,
   },
   auto_approved: {
-    titleAr: 'تمت الموافقة وتفعيل التذكرة!',
-    descAr: 'تم التحقق من الدفع بنجاح — تذكرتك جاهزة وسيتم إرسالها أيضاً عبر الواتساب',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
@@ -40,20 +37,17 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
     pulse: false,
   },
   manual_review: {
-    titleAr: 'تم استلام طلبك بنجاح!',
-    descAr: 'طلبك قيد المراجعة حالياً وسوف تصلك التذكرة الإلكترونية مباشرة عبر الواتساب على رقم الموبايل المسجل فور تأكيد الإيصال.',
     renderIcon: () => (
-      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#25D366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
       </svg>
     ),
-    color: '#34d399',
-    bg: 'rgba(52, 211, 153, 0.12)',
+    color: '#fbbf24',
+    bg: 'rgba(251, 191, 36, 0.12)',
     pulse: true,
   },
   approved: {
-    titleAr: 'تمت الموافقة وتفعيل التذكرة!',
-    descAr: 'تم التحقق من الدفع بنجاح — تذكرتك جاهزة وسيتم إرسالها أيضاً عبر الواتساب',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="20 6 9 17 4 12" />
@@ -64,8 +58,6 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
     pulse: false,
   },
   rejected: {
-    titleAr: 'لم يتم التحقق من الإيصال',
-    descAr: 'عذراً، تعذّر التحقق من صحة إيصال التحويل. يرجى التواصل مع الدعم الفني للمساعدة.',
     renderIcon: () => (
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <line x1="18" y1="6" x2="6" y2="18" />
@@ -78,11 +70,52 @@ const STATUS_CONFIG: Record<RegistrantStatus, {
   },
 };
 
+function statusTitleAr(status: RegistrantStatus, attendanceQrRequired: boolean): string {
+  switch (status) {
+    case 'pending_verification':
+    case 'manual_review':
+      return 'تم استلام طلبك بنجاح!';
+    case 'auto_approved':
+    case 'approved':
+      return attendanceQrRequired
+        ? 'تمت الموافقة وتفعيل كود الحضور!'
+        : 'تمت الموافقة على تسجيلك!';
+    case 'rejected':
+      return 'لم يتم التحقق من الإيصال';
+    default:
+      return 'حالة التسجيل';
+  }
+}
+
+function statusDescAr(status: RegistrantStatus, attendanceQrRequired: boolean): string {
+  switch (status) {
+    case 'pending_verification':
+      return attendanceQrRequired
+        ? 'تم استلام بياناتك وإيصال الدفع بنجاح — سيتم مراجعة الإيصال وإرسال رابط كود الحضور (QR) عبر الواتساب فور التأكيد.'
+        : 'تم استلام بياناتك وإيصال الدفع بنجاح — سيتم مراجعة الإيصال وإعلامك عند اعتماده. مسار تسجيلك لا يتطلب كود حضور في المركز.';
+    case 'manual_review':
+      return attendanceQrRequired
+        ? 'طلبك قيد المراجعة — سيصلك رابط كود الحضور (QR) عبر الواتساب فور تأكيد الإيصال.'
+        : 'طلبك قيد المراجعة — سيتم إعلامك عند اعتماد الإيصال. مسار تسجيلك لا يتطلب كود حضور في المركز.';
+    case 'auto_approved':
+    case 'approved':
+      return attendanceQrRequired
+        ? 'تم التحقق من الدفع بنجاح — كود الحضور جاهز وسيُرسل أيضاً عبر الواتساب إن لم يصل بعد.'
+        : 'تم التحقق من الدفع بنجاح — يمكنك متابعة الدورة حسب مسار تسجيلك (بدون كود حضور في المركز).';
+    case 'rejected':
+      return 'عذراً، تعذّر التحقق من صحة إيصال التحويل. يرجى التواصل مع الدعم الفني للمساعدة.';
+    default:
+      return '';
+  }
+}
+
 interface PublicStatusResponse {
   status: RegistrantStatus;
   fullName: string;
   church: string;
   createdAt: string | null;
+  track?: RegistrationTrack | null;
+  attendanceQrRequired?: boolean;
   messageAr?: string;
   error?: string;
 }
@@ -92,6 +125,7 @@ export default function StatusPage() {
   const router = useRouter();
   const registrantId = params.registrantId as string;
   const [registrant, setRegistrant] = useState<Registrant | null>(null);
+  const [attendanceQrRequired, setAttendanceQrRequired] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -129,8 +163,10 @@ export default function StatusPage() {
           status: data.status,
           fullName: data.fullName,
           church: data.church,
+          track: data.track ?? undefined,
           createdAt: data.createdAt ? new Date(data.createdAt) : ({} as any),
         } as unknown as Registrant);
+        setAttendanceQrRequired(Boolean(data.attendanceQrRequired));
         setError(null);
         setLoading(false);
       } catch (err) {
@@ -143,7 +179,6 @@ export default function StatusPage() {
 
     fetchStatus();
 
-    // Poll every 15 seconds for status updates
     const intervalId = setInterval(fetchStatus, 15000);
 
     return () => {
@@ -152,15 +187,17 @@ export default function StatusPage() {
     };
   }, [registrantId]);
 
-  // Auto-redirect to ticket page when approved
   useEffect(() => {
-    if (registrant?.status === 'auto_approved' || registrant?.status === 'approved') {
+    if (
+      attendanceQrRequired &&
+      (registrant?.status === 'auto_approved' || registrant?.status === 'approved')
+    ) {
       const timer = setTimeout(() => {
         router.push(`/ticket/${registrantId}`);
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [registrant?.status, registrantId, router]);
+  }, [attendanceQrRequired, registrant?.status, registrantId, router]);
 
   if (loading) {
     return (
@@ -193,8 +230,12 @@ export default function StatusPage() {
     );
   }
 
-  const statusInfo = STATUS_CONFIG[registrant.status];
+  const statusVisual = STATUS_VISUAL[registrant.status];
   const isApproved = registrant.status === 'auto_approved' || registrant.status === 'approved';
+  const titleAr = statusTitleAr(registrant.status, attendanceQrRequired);
+  const descAr = statusDescAr(registrant.status, attendanceQrRequired);
+  const showPendingBanner =
+    !isApproved && registrant.status !== 'rejected' && attendanceQrRequired;
 
   return (
     <>
@@ -202,41 +243,38 @@ export default function StatusPage() {
       <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
       <div className="container-mobile">
         <div className="glass-card" style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
-          {/* Status Icon */}
           <div style={{
             width: '5rem',
             height: '5rem',
             margin: '0 auto 1.5rem',
             borderRadius: '50%',
-            background: statusInfo.bg,
+            background: statusVisual.bg,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             position: 'relative',
           }}>
-            {statusInfo.pulse && (
+            {statusVisual.pulse && (
               <div style={{
                 position: 'absolute',
                 inset: '-0.5rem',
                 borderRadius: '50%',
-                border: `2px solid ${statusInfo.color}`,
+                border: `2px solid ${statusVisual.color}`,
                 opacity: 0.4,
                 animation: 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
               }} />
             )}
-            {statusInfo.renderIcon()}
+            {statusVisual.renderIcon()}
           </div>
 
-          {/* Status Title & Description */}
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: statusInfo.color, marginBottom: '0.5rem' }}>
-            {statusInfo.titleAr}
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: statusVisual.color, marginBottom: '0.5rem' }}>
+            {titleAr}
           </h1>
           <p style={{ fontSize: '0.9375rem', color: 'rgba(255,255,255,0.6)', marginBottom: '2rem', lineHeight: 1.6 }}>
-            {statusInfo.descAr}
+            {descAr}
           </p>
 
-          {/* WhatsApp Ticket Delivery Banner */}
-          {!isApproved && registrant.status !== 'rejected' && (
+          {showPendingBanner && (
             <div style={{
               background: 'rgba(37, 211, 102, 0.08)',
               border: '1px solid rgba(37, 211, 102, 0.25)',
@@ -249,15 +287,14 @@ export default function StatusPage() {
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12.012 2c-5.506 0-9.989 4.478-9.99 9.984 0 1.758.459 3.474 1.33 4.988l-1.413 5.164 5.283-1.386c1.464.798 3.116 1.218 4.79 1.218h.004c5.505 0 9.987-4.479 9.988-9.986 0-2.668-1.038-5.176-2.925-7.062s-4.395-2.922-7.067-2.922zm0 1.667c4.586 0 8.318 3.731 8.319 8.317 0 2.227-.867 4.321-2.443 5.897s-3.67 2.443-5.895 2.443h-.003c-1.472 0-2.915-.395-4.175-1.144l-.299-.178-3.104.814.828-3.025-.195-.311c-.822-1.309-1.257-2.825-1.257-4.373.001-4.586 3.733-8.317 8.324-8.317z"/>
                 </svg>
-                <span>سيتم إرسال التذكرة عبر الواتساب</span>
+                <span>سيتم إرسال كود الحضور عبر الواتساب</span>
               </div>
               <p style={{ fontSize: '0.8125rem', color: 'rgba(255, 255, 255, 0.8)', margin: 0, lineHeight: 1.6 }}>
-                سيصلك كود الـ QR والتذكرة الإلكترونية فوراً عبر رسالة واتساب بمجرد اعتماد الإيصال.
+                سيصلك رابط كود الحضور (QR) فوراً عبر رسالة واتساب بمجرد اعتماد الإيصال.
               </p>
             </div>
           )}
 
-          {/* Registrant Details Card */}
           <div style={{
             background: 'rgba(255,255,255,0.03)',
             borderRadius: '1rem',
@@ -283,18 +320,17 @@ export default function StatusPage() {
             )}
           </div>
 
-          {/* Action Links */}
-          {isApproved ? (
+          {isApproved && attendanceQrRequired ? (
             <div>
               <p style={{ fontSize: '0.8125rem', color: 'var(--color-success-500)', marginBottom: '1rem' }}>
-                جاري توجيهك للتذكرة تلقائيًا...
+                جاري توجيهك لكود الحضور تلقائيًا...
               </p>
               <Link
                 href={`/ticket/${registrantId}`}
                 className="btn btn-accent btn-full"
                 style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                عرض التذكرة الآن ➔
+                عرض كود الحضور الآن ➔
               </Link>
             </div>
           ) : (

@@ -96,3 +96,10 @@ export function formatTrackFee(track: RegistrationTrackInfo): string {
   const amount = track.amount.toLocaleString('ar-EG');
   return `${amount} ${track.currencyAr}`;
 }
+
+/** Center attendance QR is issued only for the انتظامي track. */
+export const ATTENDANCE_QR_TRACK: RegistrationTrack = 'onsite_exam_onsite';
+
+export function trackRequiresAttendanceQr(track: unknown): boolean {
+  return track === ATTENDANCE_QR_TRACK;
+}
