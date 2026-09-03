@@ -15,12 +15,14 @@ import {
   VALIDATION_MESSAGES,
 } from '@/lib/validation';
 import { DIAL_COUNTRIES } from '@/lib/countries';
-import { getTrack, TRACK_LIST } from '@/lib/registrationTracks';
+import { getTrack } from '@/lib/registrationTracks';
+import type { RegistrationTrack } from '@/lib/registrationTracks';
 import { WIZARD_STEPS } from '@/lib/types';
 import type { RegistrationFormData } from '@/lib/types';
 import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import PaymentInstructionsPanel from '@/components/PaymentInstructionsModal';
+import TrackPicker from '@/components/TrackPicker';
 
 const STEP_TRACK = 0;
 const STEP_FEES = 1;
@@ -117,11 +119,11 @@ function StepIndicator({ currentStep }: { currentStep: number }) {
 function StepTitle({ step, total }: { step: number; total: number }) {
   const stepInfo = WIZARD_STEPS[step];
   return (
-    <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-      <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.45)', marginBottom: '0.25rem' }}>
+    <div className={`wizard-heading${step === 0 || step === 1 ? ' is-compact' : ''}`}>
+      <p>
         خطوة {(step + 1).toLocaleString('ar-EG')} من {total.toLocaleString('ar-EG')}
       </p>
-      <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{stepInfo.titleAr}</h2>
+      <h2>{stepInfo.titleAr}</h2>
     </div>
   );
 }
@@ -327,40 +329,27 @@ export default function RegisterPage() {
       case STEP_TRACK:
         return (
           <div className="fade-in">
-            <div className="track-grid">
-              {TRACK_LIST.map((track) => {
-                const selected = formData.track === track.id;
-                return (
-                  <button
-                    key={track.id}
-                    type="button"
-                    className={`track-card is-${track.tone}${selected ? ' is-selected' : ''}`}
-                    onClick={() => {
-                      setFormData((prev) => {
-                        const switchingAbroad = (prev.track === 'abroad') !== (track.id === 'abroad');
-                        return {
-                          ...prev,
-                          track: track.id,
-                          ...(switchingAbroad
-                            ? { phoneNumber: '', whatsappNumber: '', countryDial: '' }
-                            : {}),
-                        };
-                      });
-                      setErrors((prev) => {
-                        const next = { ...prev };
-                        delete next.track;
-                        return next;
-                      });
-                    }}
-                  >
-                    {track.tagAr && <span className={`track-tag is-${track.tone}`}>{track.tagAr}</span>}
-                    <span className="track-card-title">{track.titleAr}</span>
-                    <span className="track-card-detail">{track.detailAr}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {errors.track && <p className="form-error">{errors.track}</p>}
+            <TrackPicker
+              value={formData.track}
+              error={errors.track}
+              onSelect={(id: RegistrationTrack) => {
+                setFormData((prev) => {
+                  const switchingAbroad = (prev.track === 'abroad') !== (id === 'abroad');
+                  return {
+                    ...prev,
+                    track: id,
+                    ...(switchingAbroad
+                      ? { phoneNumber: '', whatsappNumber: '', countryDial: '' }
+                      : {}),
+                  };
+                });
+                setErrors((prev) => {
+                  const next = { ...prev };
+                  delete next.track;
+                  return next;
+                });
+              }}
+            />
           </div>
         );
 
@@ -702,13 +691,13 @@ export default function RegisterPage() {
   return (
     <>
       <Header />
-      <main className="page-enter" style={{ position: 'relative', zIndex: 1, minHeight: 'calc(100dvh - 7.5rem)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '2rem 1rem' }}>
-      <div className="container-mobile">
+      <main className={`page-enter register-main${currentStep <= STEP_FEES ? ' is-picker' : ''}`}>
+      <div className={`container-mobile${currentStep <= STEP_FEES ? ' is-picker' : ''}`}>
         {/* Step Indicator */}
         <StepIndicator currentStep={currentStep} />
 
         {/* Card */}
-        <div className="glass-card" style={{ padding: '2rem 1.5rem' }}>
+        <div className={`glass-card register-card${currentStep <= STEP_FEES ? ' is-picker' : ''}`}>
           {selectedTrack && currentStep !== STEP_TRACK && currentStep !== STEP_FEES && (
           <div className="pay-recall-wrap">
             <button

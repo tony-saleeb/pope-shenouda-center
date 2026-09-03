@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { formatTrackFee, formatTrackTitle, type RegistrationTrackInfo } from '@/lib/registrationTracks';
+import { formatTrackFee, type RegistrationTrackInfo } from '@/lib/registrationTracks';
 
 const CONTACT_PHONE_DISPLAY = '0122 257 2676';
 const CONTACT_PHONE_DIGITS = '01222572676';
 const CONTACT_WHATSAPP = 'https://wa.me/201222572676';
+const INSTAPAY_LINK = 'https://ipn.eg/S/deaconantonius/instapay/8swCdp';
+const INSTAPAY_ID = 'deaconantonius@instapay';
 
 export default function PaymentInstructionsPanel({
   track,
@@ -55,116 +57,97 @@ export default function PaymentInstructionsPanel({
   };
 
   return (
-    <div className="pay-inline">
-      <p className="pay-inline-track">{formatTrackTitle(track)}</p>
-
-      <div className="pay-body">
-        <div className="pay-col">
-          <div className="pay-amount">
-            <span>قيمة الاشتراك المطلوب تحويلها</span>
-            <strong>
-              {track.amount.toLocaleString('ar-EG')}
-              <em>{track.currencyAr}</em>
-            </strong>
-          </div>
-
-          {track.usesInstapay ? (
-            <>
-              <div className="pay-method">
-                <h4>طريقة (1): InstaPay مباشر</h4>
-                <span className="pay-hint">deaconantonius@instapay</span>
-                <a
-                  className="pay-instapay"
-                  href="https://ipn.eg/S/deaconantonius/instapay/8swCdp"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <span>فتح تطبيق InstaPay للدفع</span>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                    <polyline points="15 3 21 3 21 9" />
-                    <line x1="10" y1="14" x2="21" y2="3" />
-                  </svg>
-                </a>
-              </div>
-
-              <div className="pay-method">
-                <h4>طريقة (2): تحويل على رقم انستاباى</h4>
-                <div className="pay-phone-row">
-                  <span className="pay-phone" dir="ltr">{CONTACT_PHONE_DISPLAY}</span>
-                  <button
-                    type="button"
-                    className={`pay-copy${copied ? ' is-copied' : ''}`}
-                    onClick={handleCopyPhone}
-                  >
-                    {copied ? (
-                      <>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                        <span>تم النسخ</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                        <span>نسخ الرقم</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="pay-method">
-              <h4>التحويل بالدولار</h4>
-              <span className="pay-hint">InstaPay غير متاح لهذه الفئة. تواصل لإتمام تحويل {formatTrackFee(track)}</span>
-              <a
-                className="pay-instapay"
-                href={CONTACT_WHATSAPP}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                <span>التواصل عبر واتساب لإتمام التحويل</span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
-                </svg>
-              </a>
-              <div className="pay-phone-row" style={{ marginTop: '0.65rem' }}>
-                <span className="pay-phone" dir="ltr">{CONTACT_PHONE_DISPLAY}</span>
-                <button
-                  type="button"
-                  className={`pay-copy${copied ? ' is-copied' : ''}`}
-                  onClick={handleCopyPhone}
-                >
-                  {copied ? <span>تم النسخ</span> : <span>نسخ الرقم</span>}
-                </button>
-              </div>
+    <div className="pay-sheet">
+      <div className={`pay-card is-${track.tone}`}>
+        <header className="pay-card-head">
+          <div className="pay-card-headline">
+            <span className="pay-card-icon" aria-hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M8 13h8" />
+                <path d="M8 17h5" />
+              </svg>
+            </span>
+            <div className="pay-card-head-text">
+              <span className="pay-card-title">رسوم التسجيل</span>
+              <span className="pay-card-sub">تفاصيل المبلغ المطلوب</span>
             </div>
-          )}
-
-          <div className="pay-note">
-            <h4>ملاحظة هامة (إيصال التحويل)</h4>
-            <p>
-              احرص على احتفاظك بصورة الإيصال (Screenshot) حيث سيتم رفعها لاحقاً في خطوة إثبات الدفع.
-            </p>
+          </div>
+          <span className={`pay-card-badge is-${track.tone}`}>
+            {track.tagAr ?? track.titleAr}
+          </span>
+        </header>
+        <div className="pay-card-divider" aria-hidden />
+        <div className="pay-card-total">
+          <span className="pay-card-label">المبلغ المطلوب للتحويل</span>
+          <div className="pay-card-price">
+            <span className="pay-card-amount">
+              {track.amount.toLocaleString('ar-EG')}
+            </span>
+            <span className="pay-card-currency">{track.currencyAr}</span>
           </div>
         </div>
-
-        {track.usesInstapay && (
-          <div className="pay-col pay-sample">
-            <h4>نموذج إيصال التحويل المقبول (Screenshot):</h4>
-            <img
-              src="/assets/mockup.png"
-              alt="نموذج إيصال التحويل المقبول"
-            />
-          </div>
-        )}
       </div>
+
+      {track.usesInstapay ? (
+        <>
+          <a
+            className="pay-primary"
+            href={INSTAPAY_LINK}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span>ادفع الآن عبر InstaPay</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M5 12h14" />
+              <path d="m12 5 7 7-7 7" />
+            </svg>
+          </a>
+          <p className="pay-account" dir="ltr">{INSTAPAY_ID}</p>
+        </>
+      ) : (
+        <a
+          className="pay-primary"
+          href={CONTACT_WHATSAPP}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <span>تواصل عبر واتساب للدفع</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M5 12h14" />
+            <path d="m12 5 7 7-7 7" />
+          </svg>
+        </a>
+      )}
+
+      <div className="pay-split">
+        <span>أو حوّل يدوياً</span>
+      </div>
+
+      <div className="pay-manual">
+        <span className="pay-manual-phone" dir="ltr">{CONTACT_PHONE_DISPLAY}</span>
+        <button
+          type="button"
+          className={`pay-sheet-copy${copied ? ' is-copied' : ''}`}
+          onClick={handleCopyPhone}
+        >
+          {copied ? 'تم النسخ' : 'نسخ الرقم'}
+        </button>
+      </div>
+
+      {!track.usesInstapay && (
+        <p className="pay-account">InstaPay غير متاح — {formatTrackFee(track)}</p>
+      )}
+
+      <p className="pay-sheet-tip">بعد التحويل احتفظ بصورة الإيصال لرفعها في الخطوة التالية</p>
+
+      {track.usesInstapay && (
+        <figure className="pay-sheet-sample">
+          <figcaption>مثال للإيصال المقبول</figcaption>
+          <img src="/assets/mockup.png" alt="نموذج إيصال التحويل المقبول" />
+        </figure>
+      )}
     </div>
   );
 }

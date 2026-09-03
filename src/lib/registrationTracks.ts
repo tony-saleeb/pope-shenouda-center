@@ -15,6 +15,8 @@ export interface RegistrationTrackInfo {
   tagAr?: string;
   tone: 'gold' | 'emerald' | 'sky' | 'copper';
   detailAr: string;
+  lectureAr?: string;
+  examAr?: string;
   amount: number;
   currency: FeeCurrency;
   currencyAr: string;
@@ -28,6 +30,8 @@ export const TRACKS: Record<RegistrationTrack, RegistrationTrackInfo> = {
     tagAr: 'انتظامي',
     tone: 'gold',
     detailAr: 'المحاضرات والامتحان داخل المركز',
+    lectureAr: 'الحضور في المركز',
+    examAr: 'الامتحان في المركز',
     amount: 500,
     currency: 'EGP',
     currencyAr: 'جنيه مصري',
@@ -39,6 +43,8 @@ export const TRACKS: Record<RegistrationTrack, RegistrationTrackInfo> = {
     tagAr: 'انتسابي',
     tone: 'emerald',
     detailAr: 'المحاضرات عن بُعد والامتحان داخل المركز',
+    lectureAr: 'الدورة أونلاين',
+    examAr: 'الامتحان في المركز',
     amount: 400,
     currency: 'EGP',
     currencyAr: 'جنيه مصري',
@@ -50,6 +56,8 @@ export const TRACKS: Record<RegistrationTrack, RegistrationTrackInfo> = {
     tagAr: 'سماعي',
     tone: 'sky',
     detailAr: 'متابعة المحاضرات عن بُعد دون امتحان',
+    lectureAr: 'الدورة أونلاين',
+    examAr: 'بدون امتحان',
     amount: 400,
     currency: 'EGP',
     currencyAr: 'جنيه مصري',
