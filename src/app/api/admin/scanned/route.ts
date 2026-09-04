@@ -4,6 +4,8 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
 import { expandTicketCheckIns } from '@/lib/gateCheckIns';
 import { cairoDateKey, mergeSessionDays } from '@/lib/eventDays';
+import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
+import { APPROVED_STATUSES } from '@/lib/registrantStatus';
 
 export const runtime = 'nodejs';
 
@@ -28,8 +30,8 @@ export async function GET(request: NextRequest) {
     const [registrantsSnap, ticketsSnap] = await Promise.all([
       db
         .collection('registrants')
-        .where('status', '==', 'approved')
-        .select('fullName', 'church', 'phoneNumber')
+        .where('status', 'in', APPROVED_STATUSES)
+        .select('fullName', 'church', 'phoneNumber', 'track')
         .get(),
       db
         .collection('tickets')
@@ -73,20 +75,25 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const students = registrantsSnap.docs.map((docSnap) => {
-      const data = docSnap.data();
-      const ticketMeta = ticketMetaByRegistrant.get(docSnap.id);
-      const attended = checkInsByRegistrant.get(docSnap.id) ?? {};
-      return {
-        id: docSnap.id,
-        registrantId: docSnap.id,
-        registrantName: asString(data.fullName) || ticketMeta?.registrantName || '',
-        church: asString(data.church) || ticketMeta?.church || '',
-        phoneNumber: asString(data.phoneNumber) || ticketMeta?.phoneNumber || '',
-        attended,
-        attendedCount: Object.keys(attended).length,
-      };
-    });
+    const students = registrantsSnap.docs
+      .filter((docSnap) => {
+        const data = docSnap.data();
+        return trackRequiresAttendanceQr(data.track) || checkInsByRegistrant.has(docSnap.id);
+      })
+      .map((docSnap) => {
+        const data = docSnap.data();
+        const ticketMeta = ticketMetaByRegistrant.get(docSnap.id);
+        const attended = checkInsByRegistrant.get(docSnap.id) ?? {};
+        return {
+          id: docSnap.id,
+          registrantId: docSnap.id,
+          registrantName: asString(data.fullName) || ticketMeta?.registrantName || '',
+          church: asString(data.church) || ticketMeta?.church || '',
+          phoneNumber: asString(data.phoneNumber) || ticketMeta?.phoneNumber || '',
+          attended,
+          attendedCount: Object.keys(attended).length,
+        };
+      });
 
     students.sort((a, b) => a.registrantName.localeCompare(b.registrantName, 'ar'));
 
