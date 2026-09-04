@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin, PRIMARY_ADMIN_EMAIL } from '@/lib/auth/guards';
 import { FieldValue } from 'firebase-admin/firestore';
+import { genericApiError } from '@/lib/http/apiError';
 
 export interface AdminUserRecord {
   email: string;
@@ -60,7 +62,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ admins });
   } catch (error) {
     console.error('Fetch admins error:', error);
-    return NextResponse.json({ error: 'حدث خطأ أثناء جلب قائمة الأدمن' }, { status: 500 });
+    return genericApiError(randomUUID(), 'حدث خطأ أثناء جلب قائمة الأدمن');
   }
 }
 
@@ -124,8 +126,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Add admin error:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: `خطأ في إضافة الأدمن: ${errorMessage}` }, { status: 500 });
+    return genericApiError(randomUUID(), 'حدث خطأ أثناء إضافة الأدمن');
   }
 }
 
@@ -168,7 +169,6 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error('Delete admin error:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: `خطأ في حذف الأدمن: ${errorMessage}` }, { status: 500 });
+    return genericApiError(randomUUID(), 'حدث خطأ أثناء حذف الأدمن');
   }
 }

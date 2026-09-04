@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
         'track',
         'feeAmount',
         'feeCurrency',
-        'ocrExtractedReference',
         'createdAt'
       )
       .get();
@@ -57,8 +56,6 @@ export async function GET(request: NextRequest) {
         track: typeof data.track === 'string' ? data.track : '',
         feeAmount: typeof data.feeAmount === 'number' ? data.feeAmount : null,
         feeCurrency: typeof data.feeCurrency === 'string' ? data.feeCurrency : '',
-        ocrExtractedReference:
-          typeof data.ocrExtractedReference === 'string' ? data.ocrExtractedReference : null,
         createdAt: toIso(data.createdAt),
       };
     });

@@ -21,10 +21,7 @@ function getAdminApp(): App {
   const privateKey = rawKey.replace(/\\n/g, '\n');
 
   if (!projectId || !clientEmail || !privateKey) {
-    console.warn('Firebase Admin SDK: Missing credentials, initializing with project ID only');
-    return initializeApp({
-      projectId: projectId || 'placeholder-project',
-    });
+    throw new Error('Firebase Admin credentials are required');
   }
 
   return initializeApp({

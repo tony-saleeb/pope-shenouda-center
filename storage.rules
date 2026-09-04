@@ -3,29 +3,15 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // ─── Payment Screenshots ───────────────────────────────────────
-    // Public clients can upload to /screenshots/{registrantId}/*
-    // Restricted to:
-    //   - Image content types only
-    //   - Max 5MB file size
-    //   - One file per registrant path (no overwrites)
+    // Receipts and ticket images are written and read only via the Admin SDK.
     match /screenshots/{registrantId}/{fileName} {
-      allow read: if true;  // Cloud Functions & admin need to read
-
-      allow create: if request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
-
-      allow update, delete: if false;
+      allow read, write: if false;
     }
 
-    // ─── QR Ticket Images ──────────────────────────────────────────
-    // Written by Cloud Functions only (Admin SDK bypasses rules)
     match /tickets/{registrantId}/{fileName} {
-      allow read: if true;  // Ticket page needs to display
-      allow write: if false; // Only Admin SDK
+      allow read, write: if false;
     }
 
-    // Deny everything else
     match /{allPaths=**} {
       allow read, write: if false;
     }

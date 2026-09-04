@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
 import { FieldValue } from 'firebase-admin/firestore';
 import { issueAttendanceTicket } from '@/lib/qr/issueAttendanceTicket';
 import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 import { sendAutomatedWhatsAppTicket } from '@/lib/whatsapp/api';
+import { genericApiError } from '@/lib/http/apiError';
 
 export async function POST(request: NextRequest) {
   const authResult = await requireAdmin(request);
   if (!authResult.authorized) {
     return authResult.response;
   }
+
+  const correlationId = randomUUID();
 
   try {
     const { registrantId, notes } = await request.json();
@@ -34,7 +38,6 @@ export async function POST(request: NextRequest) {
       status: 'approved',
       verifiedAt: FieldValue.serverTimestamp(),
       adminNotes: notes || null,
-      ocrStatus: 'skipped',
     });
 
     let whatsappSent = false;
@@ -56,8 +59,7 @@ export async function POST(request: NextRequest) {
       whatsappSent,
     });
   } catch (error) {
-    console.error('Approve error:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: `خطأ في تنفيذ الموافقة: ${errorMessage}` }, { status: 500 });
+    console.error(`[Approve] ${correlationId} failed:`, error);
+    return genericApiError(correlationId, 'حدث خطأ أثناء تنفيذ الموافقة');
   }
 }

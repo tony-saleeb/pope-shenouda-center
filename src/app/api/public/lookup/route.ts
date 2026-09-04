@@ -1,12 +1,9 @@
 /**
  * Public Ticket Lookup API.
  *
- * SECURITY NOTE: Direct client-side phoneIndex lookups let any anonymous user steal
- * attendee tickets and bulk-enumerate registrant phone numbers. This route replaces
- * redirect-on-lookup with send-ticket-to-registered-whatsapp.
- *
- * OTP verification is the stronger long-term control; sending the link to WhatsApp
- * removes the direct leak by requiring possession of the registered phone.
+ * Always returns the same 200 body for a valid phone so callers cannot
+ * enumerate who is registered. Attendance QR is sent to WhatsApp only
+ * for the onsite (انتظامي) track, and never includes registrantId.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -20,12 +17,18 @@ import { getLimiter, limitByIp } from '@/lib/ratelimit';
 const ANTI_ENUMERATION_MESSAGE =
   'لو الرقم مسجّل عندنا، هيوصلك رابط كود الحضور (QR) على الواتساب خلال دقائق.';
 
+function antiEnumerationResponse() {
+  return NextResponse.json({
+    success: true,
+    messageAr: ANTI_ENUMERATION_MESSAGE,
+  });
+}
+
 /** Rate limiters: 30 req / 15m per IP, and 15 req / 15m per phone number. */
 const lookupIpLimiter = getLimiter('public-lookup-ip', 30, '15 m');
 const lookupPhoneLimiter = getLimiter('public-lookup-phone', 15, '15 m');
 
 export async function POST(request: NextRequest) {
-  // 1. IP Rate Limiting
   const limitedIpResponse = await limitByIp(request, lookupIpLimiter);
   if (limitedIpResponse) {
     return limitedIpResponse;
@@ -51,7 +54,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Phone Number Rate Limiting (3 per hour per phone)
     const { success: phoneSuccess, reset: phoneReset } = await lookupPhoneLimiter.limit(normalized);
     if (!phoneSuccess) {
       const retryAfterSeconds = Math.ceil(Math.max(0, phoneReset - Date.now()) / 1000);
@@ -67,62 +69,30 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Lookup phone index via Admin SDK
     const db = getAdminDb();
     const phoneSnap = await db.collection('phoneIndex').doc(normalized).get();
 
     if (!phoneSnap.exists) {
-      console.log(`[Public Lookup] Phone ${normalized} not found in phoneIndex`);
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Not found',
-          messageAr: 'عفواً، هذا الرقم غير مسجّل لدينا. يرجى التأكد من الرقم الذي قمت بالتسجيل به، أو قم بالتسجيل الآن.',
-        },
-        { status: 404 }
-      );
+      return antiEnumerationResponse();
     }
 
     const registrantId = phoneSnap.data()?.registrantId;
-
-    if (!registrantId) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Registrant ID missing',
-          messageAr: 'عفواً، لم نتمكن من العثور على بيانات كود الحضور لهذا الرقم.',
-        },
-        { status: 404 }
-      );
+    if (typeof registrantId !== 'string' || !registrantId) {
+      return antiEnumerationResponse();
     }
-
-    console.log(`[Public Lookup] Found registrant ${registrantId} for phone ${normalized}`);
 
     const regSnap = await db.collection('registrants').doc(registrantId).get();
     const track = regSnap.data()?.track;
 
-    if (!trackRequiresAttendanceQr(track)) {
-      return NextResponse.json({
-        success: true,
-        registrantId,
-        attendanceQrIssued: false,
-        messageAr:
-          'تم التحقق من حسابك. مسار تسجيلك لا يتطلب كود حضور (QR) في المركز.',
-      });
+    if (trackRequiresAttendanceQr(track)) {
+      try {
+        await sendAutomatedWhatsAppTicket(normalized, registrantId);
+      } catch (sendErr) {
+        console.error('[Public Lookup] Failed sending WhatsApp ticket:', sendErr);
+      }
     }
 
-    try {
-      await sendAutomatedWhatsAppTicket(normalized, registrantId);
-    } catch (sendErr) {
-      console.error(`[Public Lookup] Failed sending WhatsApp ticket for ${registrantId}:`, sendErr);
-    }
-
-    return NextResponse.json({
-      success: true,
-      registrantId,
-      attendanceQrIssued: true,
-      messageAr: 'تم العثور على حسابك بنجاح! تم إرسال رابط كود الحضور (QR) إلى الواتساب الخاص بك.',
-    });
+    return antiEnumerationResponse();
   } catch (error) {
     console.error('[Public Lookup] Error:', error);
     return NextResponse.json(

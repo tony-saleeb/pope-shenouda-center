@@ -499,7 +499,7 @@ export default function AttendanceSheetPage() {
             تسجيل الحضور
           </h1>
           <p style={{ fontSize: '0.875rem', color: 'rgba(247, 240, 228, 0.6)', margin: 0 }}>
-            كشف حضور الدارسين — جلسات الدورة كل ثلاثاء وسبت
+            كشف حضور الدارسين — جلسات الدراسة كل ثلاثاء وسبت
           </p>
         </div>
         <button
@@ -571,7 +571,7 @@ export default function AttendanceSheetPage() {
               </svg>
             </button>
             <div>
-              <h2>{monthKey === 'all' ? 'كل شهور الدورة' : (months[monthIndex]?.label ?? '')}</h2>
+              <h2>{monthKey === 'all' ? 'كل شهور الدراسة' : (months[monthIndex]?.label ?? '')}</h2>
               <p>كل أسبوع: ثلاثاء ثم سبت</p>
               <button
                 type="button"

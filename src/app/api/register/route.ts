@@ -11,6 +11,11 @@ import { randomUUID } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import {
+  MAX_STORED_RECEIPT_BYTES,
+  receiptPointer,
+  receiptWriteFields,
+} from '@/lib/firebase/receipts';
+import {
   isValidEgyptianPhone,
   isValidInternationalPhone,
   isValidName,
@@ -151,9 +156,13 @@ export async function POST(request: NextRequest) {
       return badRequest(VALIDATION_MESSAGES.screenshotRequired);
     }
 
-    const paymentScreenshotUrl = `data:${mimeType};base64,${Buffer.from(bytes).toString('base64')}`;
+    if (bytes.byteLength > MAX_STORED_RECEIPT_BYTES) {
+      return badRequest(VALIDATION_MESSAGES.uploadFailed);
+    }
 
     const registrantId = randomUUID();
+    const paymentScreenshotUrl = receiptPointer(registrantId);
+    const receiptFields = receiptWriteFields(bytes, mimeType);
     const db = getAdminDb();
 
     try {
@@ -164,6 +173,8 @@ export async function POST(request: NextRequest) {
         if (phoneSnap.exists) {
           throw new Error('DUPLICATE_PHONE');
         }
+
+        transaction.set(db.collection('receipts').doc(registrantId), receiptFields);
 
         transaction.set(db.collection('registrants').doc(registrantId), {
           fullName,
@@ -176,11 +187,6 @@ export async function POST(request: NextRequest) {
           countryDial: isAbroad ? countryDial : null,
           paymentScreenshotUrl,
           status: 'pending_verification',
-          ocrStatus: 'queued',
-          ocrExtractedReference: null,
-          ocrExtractedAmount: null,
-          ocrExtractedSenderName: null,
-          ocrConfidence: null,
           adminNotes: null,
           createdAt: FieldValue.serverTimestamp(),
           verifiedAt: null,

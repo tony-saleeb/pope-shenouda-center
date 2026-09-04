@@ -49,11 +49,44 @@ describe('GET /api/public/ticket/[registrantId]', () => {
     expect(body.messageAr).toBe('التسجيل غير مقبول بعد — التذكرة تظهر فقط للطلبات المقبولة');
   });
 
+  it('returns 403 when an approved registrant is not on the انتظامي track', async () => {
+    const mockRegData = {
+      status: 'approved',
+      fullName: 'Jane Doe',
+      church: 'St. George',
+      track: 'online_exam_onsite',
+    };
+
+    (getAdminDb as any).mockReturnValue({
+      collection: (col: string) => {
+        if (col === 'registrants') {
+          return {
+            doc: () => ({
+              get: vi.fn().mockResolvedValue({
+                exists: true,
+                data: () => mockRegData,
+              }),
+            }),
+          };
+        }
+        return { doc: () => ({ get: vi.fn() }) };
+      },
+    });
+
+    const req = new NextRequest('http://localhost/api/public/ticket/reg-online');
+    const res = await GET(req, { params: Promise.resolve({ registrantId: 'reg-online' }) });
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.messageAr).toBe('كود الحضور (QR) متاح فقط لمسار الانتظامي — الحضور في المركز');
+  });
+
   it('returns 200 with ONLY sanitized ticket fields (fullName, church, qrImageUrl, used, usedAt) and NEVER returns qrToken', async () => {
     const mockRegData = {
       status: 'approved',
       fullName: 'Jane Doe',
       church: 'St. George',
+      track: 'onsite_exam_onsite',
     };
 
     const mockTicketData = {

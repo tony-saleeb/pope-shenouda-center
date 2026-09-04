@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
 import { compressPaymentScreenshot, UploadProgress } from '@/lib/firebase/storage';
 import {
   isValidEgyptianPhone,
@@ -144,7 +142,6 @@ export default function RegisterPage() {
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [checkingPhone, setCheckingPhone] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -226,28 +223,6 @@ export default function RegisterPage() {
   // ─── Navigation ──────────────────────────────────────────────────
   const goNext = async () => {
     if (!validateStep(currentStep)) return;
-
-    if (currentStep === STEP_PHONE) {
-      setCheckingPhone(true);
-      try {
-        const phone = storedPhone(formData);
-        const phoneRef = doc(db, 'phoneIndex', phone);
-        const phoneDoc = await getDoc(phoneRef);
-
-        if (phoneDoc.exists()) {
-          setErrors((prev) => ({
-            ...prev,
-            phoneNumber: VALIDATION_MESSAGES.duplicatePhone,
-          }));
-          return;
-        }
-      } catch (err) {
-        console.error('Error checking duplicate phone:', err);
-      } finally {
-        setCheckingPhone(false);
-      }
-    }
-
     setCurrentStep((prev) => Math.min(prev + 1, WIZARD_STEPS.length - 1));
   };
 
@@ -755,22 +730,15 @@ export default function RegisterPage() {
               <button
                 className="btn btn-primary"
                 onClick={goNext}
-                disabled={!isStepValid() || checkingPhone}
+                disabled={!isStepValid()}
               >
-                {checkingPhone ? (
-                  <>
-                    <span className="spinner spinner-gold" />
-                    <span>جاري التحقق</span>
-                  </>
-                ) : (
-                  <>
-                    <span>التالي</span>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
-                      <path d="M5 12h14" />
-                      <path d="m12 5 7 7-7 7" />
-                    </svg>
-                  </>
-                )}
+                <>
+                  <span>التالي</span>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </>
               </button>
             )}
 

@@ -3,46 +3,37 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ─── Public Registration ───────────────────────────────────────
-    // Creates are server-only (Admin SDK via /api/register). Client create is
-    // denied so public Firebase config cannot forge registrants or pre-block phones.
+    // All registrant, ticket, and phone data is served by Admin SDK APIs.
     match /registrants/{registrantId} {
-      allow create: if false;
-      allow read: if true;  // Status page needs to read own doc (no auth)
-      allow update, delete: if false;  // Only Admin SDK (Cloud Functions / API routes)
+      allow read, write: if false;
     }
 
-    // ─── Phone Uniqueness Index ────────────────────────────────────
-    // Written only by Admin SDK in the same transaction as the registrant.
     match /phoneIndex/{phoneNumber} {
-      allow create: if false;
-      allow read: if true;
-      allow update, delete: if false;
+      allow read, write: if false;
     }
 
-    // ─── Bank Transactions ─────────────────────────────────────────
-    // Written only by Cloud Functions (Admin SDK) or authenticated admins.
+    match /tickets/{registrantId} {
+      allow read, write: if false;
+    }
+
     match /bankTransactions/{referenceNumber} {
       allow read: if request.auth != null && request.auth.token.role == 'admin';
       allow write: if request.auth != null && request.auth.token.role == 'admin';
     }
 
-    // ─── Tickets ───────────────────────────────────────────────────
-    // Written only by Cloud Functions. Ushers can read for display.
-    match /tickets/{registrantId} {
-      allow read: if true;  // Ticket page is auth-free (unguessable UUID)
-      allow write: if false; // Only Admin SDK
-    }
-
-    // ─── Staff ─────────────────────────────────────────────────────
-    // Staff can read their own doc. Only Admin SDK writes.
     match /staff/{authUid} {
       allow read: if request.auth != null && request.auth.uid == authUid;
-      allow write: if false; // Only Admin SDK
+      allow write: if false;
     }
 
-    // ─── Rate Limits ───────────────────────────────────────────────
-    // Written only by Admin SDK from API routes. No client access.
+    match /admins/{email} {
+      allow read, write: if false;
+    }
+
+    match /receipts/{registrantId} {
+      allow read, write: if false;
+    }
+
     match /rateLimits/{docId} {
       allow read, write: if false;
     }

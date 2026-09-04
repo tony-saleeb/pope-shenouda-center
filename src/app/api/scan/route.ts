@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { verifyTicket } from '@/lib/qr/hmac';
-import { verifyAuthToken, PRIMARY_ADMIN_EMAIL } from '@/lib/auth/guards';
+import { requireUsher } from '@/lib/auth/guards';
 import { getValidPasscode } from '@/app/api/scan/verify-passcode/route';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
@@ -34,29 +34,21 @@ export async function POST(request: NextRequest) {
     return limitedResponse;
   }
 
-  // Check authorization via Usher Passcode header OR Firebase ID Token
-  const passcodeHeader = request.headers.get('x-usher-passcode');
+  // Firebase usher/admin token first; shared device passcode remains a fallback.
+  const usherAuth = await requireUsher(request);
   let authorized = false;
   let usherId = 'usher-passcode';
 
-  if (passcodeHeader) {
-    const validPasscode = await getValidPasscode();
-    if (passcodeMatches(passcodeHeader, validPasscode)) {
-      authorized = true;
-      usherId = 'usher-passcode';
-      console.warn('[scan] Passcode-authenticated scan — no individual usher attribution. (See P0-5)');
-    }
-  }
-
-  if (!authorized) {
-    const decodedToken = await verifyAuthToken(request);
-    if (decodedToken) {
-      const userEmail = decodedToken.email?.toLowerCase();
-      const isPrimaryAdmin = userEmail === PRIMARY_ADMIN_EMAIL.toLowerCase();
-      const userRole = decodedToken.role || (isPrimaryAdmin ? 'admin' : undefined);
-      if (userRole === 'admin' || userRole === 'usher') {
+  if (usherAuth.authorized) {
+    authorized = true;
+    usherId = usherAuth.uid;
+  } else {
+    const passcodeHeader = request.headers.get('x-usher-passcode');
+    if (passcodeHeader) {
+      const validPasscode = await getValidPasscode();
+      if (passcodeMatches(passcodeHeader, validPasscode)) {
         authorized = true;
-        usherId = decodedToken.uid;
+        usherId = 'usher-passcode';
       }
     }
   }

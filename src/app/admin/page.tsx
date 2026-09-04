@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { collection, query, where, getCountFromServer } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
+import { useAuth } from '@/lib/auth/context';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, CartesianGrid } from 'recharts';
 interface Stats {
   total: number;
@@ -111,35 +110,33 @@ function accent(color: string): React.CSSProperties {
 }
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [stats, setStats] = useState<Stats>({
     total: 0, pending: 0, review: 0, approved: 0, rejected: 0, checkedIn: 0,
   });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return;
+    const currentUser = user;
+
     async function fetchStats() {
       try {
-        const registrantsRef = collection(db, 'registrants');
-        const ticketsRef = collection(db, 'tickets');
-
-        const [total, pending, review, approved, autoApproved, rejected, checkedIn] =
-          await Promise.all([
-            getCountFromServer(registrantsRef),
-            getCountFromServer(query(registrantsRef, where('status', '==', 'pending_verification'))),
-            getCountFromServer(query(registrantsRef, where('status', '==', 'manual_review'))),
-            getCountFromServer(query(registrantsRef, where('status', '==', 'approved'))),
-            getCountFromServer(query(registrantsRef, where('status', '==', 'auto_approved'))),
-            getCountFromServer(query(registrantsRef, where('status', '==', 'rejected'))),
-            getCountFromServer(query(ticketsRef, where('used', '==', true))),
-          ]);
-
+        const token = await currentUser.getIdToken();
+        const response = await fetch('/api/admin/stats', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) {
+          throw new Error('stats_failed');
+        }
+        const payload = (await response.json()) as Partial<Stats>;
         setStats({
-          total: total.data().count,
-          pending: pending.data().count,
-          review: review.data().count,
-          approved: approved.data().count + autoApproved.data().count,
-          rejected: rejected.data().count,
-          checkedIn: checkedIn.data().count,
+          total: payload.total ?? 0,
+          pending: payload.pending ?? 0,
+          review: payload.review ?? 0,
+          approved: payload.approved ?? 0,
+          rejected: payload.rejected ?? 0,
+          checkedIn: payload.checkedIn ?? 0,
         });
       } catch (error) {
         console.error('Error fetching stats:', error);
@@ -148,10 +145,12 @@ export default function AdminDashboard() {
       }
     }
 
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
+    void fetchStats();
+    const interval = setInterval(() => {
+      void fetchStats();
+    }, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [user]);
 
   return (
     <div>

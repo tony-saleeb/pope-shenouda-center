@@ -25,8 +25,7 @@ const ARABIC_MESSAGES = new Set([
  * The resulting Blob is posted to /api/register, which is the only writer allowed by
  * the Firestore rules.
  *
- * Rejects rather than falling back to the uncompressed original: an oversized or blank
- * receipt is stored verbatim and cannot be reviewed or OCR'd.
+ * Rejects rather than falling back to the uncompressed original.
  */
 export async function compressPaymentScreenshot(file: File): Promise<Blob> {
   if (file.size > MAX_SOURCE_BYTES) {
