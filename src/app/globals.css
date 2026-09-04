@@ -387,84 +387,69 @@ body {
   direction: rtl;
 }
 
-.track-grid {
+.track-board {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.6rem;
 }
 
-.track-folio {
-  --track-ink: #e4c57a;
-  --track-glow: rgba(228, 197, 122, 0.18);
+.track-choice {
   appearance: none;
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 0.95rem;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.15rem;
   width: 100%;
-  min-height: 4.75rem;
-  padding: 1.1rem 1.1rem;
-  border: 1px solid rgba(196, 163, 90, 0.26);
-  border-radius: 1.2rem;
-  background:
-    radial-gradient(ellipse at 12% 0%, var(--track-glow), transparent 58%),
-    linear-gradient(180deg, rgba(46, 30, 14, 0.7) 0%, rgba(12, 7, 3, 0.84) 100%);
-  color: #f3e6c8;
+  min-height: 7.5rem;
+  padding: 1.15rem 1.1rem 1.05rem;
+  border: 1px solid rgba(196, 163, 90, 0.18);
+  border-radius: 1.25rem;
+  background: rgba(10, 6, 2, 0.45);
+  color: inherit;
   text-align: right;
   cursor: pointer;
   font: inherit;
+  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
 }
 
-.track-folio.is-gold { --track-ink: #fbba33; --track-glow: rgba(251, 186, 51, 0.2); }
-.track-folio.is-emerald { --track-ink: #6ee7b7; --track-glow: rgba(16, 185, 129, 0.18); }
-.track-folio.is-sky { --track-ink: #7dd3fc; --track-glow: rgba(56, 189, 248, 0.18); }
-.track-folio.is-copper { --track-ink: #fdba74; --track-glow: rgba(234, 88, 12, 0.18); }
-
-.track-folio:hover,
-.track-folio:focus-visible {
+.track-choice:hover,
+.track-choice:focus-visible {
   outline: none;
-  border-color: color-mix(in srgb, var(--track-ink) 55%, rgba(196, 163, 90, 0.4));
+  border-color: rgba(228, 197, 122, 0.38);
+  background: rgba(18, 11, 4, 0.7);
 }
 
-.track-folio.is-selected {
-  border-color: var(--track-ink);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--track-ink) 35%, transparent);
+.track-choice:focus-visible {
+  outline: 2px solid rgba(228, 197, 122, 0.5);
+  outline-offset: 3px;
 }
 
-.track-seal {
-  width: 3.1rem;
-  height: 3.1rem;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: var(--track-ink);
-  background: rgba(8, 5, 2, 0.55);
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--track-ink) 60%, transparent);
+.track-choice.is-on {
+  border-color: rgba(228, 197, 122, 0.85);
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(228, 197, 122, 0.14), transparent 55%),
+    rgba(22, 14, 6, 0.92);
 }
 
-.track-folio-copy {
+.track-choice-top {
   display: flex;
-  flex-direction: column;
   align-items: flex-start;
-  gap: 0.28rem;
-  min-width: 0;
-  flex: 1 1 auto;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
-.track-folio-name {
-  font-size: 1.32rem;
-  font-weight: 900;
-  line-height: 1.25;
-  color: #f8edd4;
+.track-choice-name {
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1.3;
+  color: #f4ead4;
 }
 
-.track-folio-detail {
-  font-size: 0.875rem;
-  font-weight: 600;
-  line-height: 1.5;
-  color: rgba(243, 230, 200, 0.62);
+.track-choice.is-featured .track-choice-name {
+  font-size: clamp(1.45rem, 4vw, 1.85rem);
 }
 
-.track-dot {
+.track-choice-tick {
   width: 1.35rem;
   height: 1.35rem;
   flex-shrink: 0;
@@ -472,13 +457,111 @@ body {
   place-items: center;
   border-radius: 50%;
   border: 1.5px solid rgba(243, 230, 200, 0.22);
-  background: rgba(0, 0, 0, 0.2);
+  background: transparent;
   color: #1a1208;
 }
 
-.track-dot.is-on {
+.track-choice-tick.is-on {
   border-color: transparent;
-  background: var(--track-ink);
+  background: #e4c57a;
+}
+
+.track-path {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 1.75rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.2rem;
+}
+
+.track-node {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.track-node i {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  border: 1.5px solid rgba(228, 197, 122, 0.45);
+  background: transparent;
+}
+
+.track-choice.is-on .track-node i {
+  border-color: #e4c57a;
+  background: #e4c57a;
+}
+
+.track-node em {
+  display: block;
+  font-style: normal;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: rgba(228, 197, 122, 0.62);
+}
+
+.track-node b {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.45;
+  color: rgba(243, 230, 200, 0.78);
+}
+
+.track-rail {
+  align-self: start;
+  height: 1px;
+  margin-top: 0.22rem;
+  background: rgba(228, 197, 122, 0.28);
+}
+
+.track-choice.is-on .track-rail {
+  background: rgba(228, 197, 122, 0.7);
+}
+
+.track-choice-note {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.65;
+  color: rgba(243, 230, 200, 0.58);
+}
+
+.track-choice.is-abroad {
+  min-height: 4.4rem;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+@media (min-width: 40rem) {
+  .track-board {
+    grid-template-columns: 1.2fr 0.8fr;
+    grid-template-rows: auto auto auto;
+    gap: 0.65rem;
+  }
+
+  .track-choice.is-featured {
+    grid-row: 1 / 3;
+    min-height: 100%;
+    padding: 1.4rem 1.3rem 1.25rem;
+    gap: 1.6rem;
+  }
+
+  .track-choice.is-featured .track-path {
+    margin-top: auto;
+  }
+
+  .track-choice.is-abroad {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track-choice {
+    transition: none;
+  }
 }
 
 .phone-intl {
