@@ -52,12 +52,12 @@ export const TRACKS: Record<RegistrationTrack, RegistrationTrackInfo> = {
   },
   online_no_exam: {
     id: 'online_no_exam',
-    titleAr: 'الدراسة أونلاين بدون امتحان',
+    titleAr: 'الدراسة أونلاين والامتحان أونلاين',
     tagAr: 'سماعي',
     tone: 'sky',
-    detailAr: 'متابعة المحاضرات عن بُعد دون امتحان',
+    detailAr: 'المحاضرات والامتحان عن بُعد',
     lectureAr: 'الدراسة أونلاين',
-    examAr: 'بدون امتحان',
+    examAr: 'الامتحان أونلاين',
     amount: 400,
     currency: 'EGP',
     currencyAr: 'جنيه مصري',
@@ -93,6 +93,9 @@ export function formatTrackTitle(track: RegistrationTrackInfo): string {
 }
 
 export function formatTrackFee(track: RegistrationTrackInfo): string {
+  if (track.currency === 'USD') {
+    return `${track.amount}$ USD`;
+  }
   const amount = track.amount.toLocaleString('ar-EG');
   return `${amount} ${track.currencyAr}`;
 }

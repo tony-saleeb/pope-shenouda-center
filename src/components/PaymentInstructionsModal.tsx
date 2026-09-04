@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { formatTrackFee, type RegistrationTrackInfo } from '@/lib/registrationTracks';
+import { type RegistrationTrackInfo } from '@/lib/registrationTracks';
+import { getAbroadPaymentWhatsAppUrl } from '@/lib/whatsapp/templates';
 
 const CONTACT_PHONE_DISPLAY = '0122 257 2676';
 const CONTACT_PHONE_DIGITS = '01222572676';
-const CONTACT_WHATSAPP = 'https://wa.me/201222572676';
 const INSTAPAY_LINK = 'https://ipn.eg/S/deaconantonius/instapay/8swCdp';
 const INSTAPAY_ID = 'deaconantonius@instapay';
 
@@ -82,10 +82,14 @@ export default function PaymentInstructionsPanel({
         <div className="pay-card-total">
           <span className="pay-card-label">المبلغ المطلوب للتحويل</span>
           <div className="pay-card-price">
-            <span className="pay-card-amount">
-              {track.amount.toLocaleString('ar-EG')}
+            <span className="pay-card-amount" dir={track.currency === 'USD' ? 'ltr' : undefined}>
+              {track.currency === 'USD'
+                ? `${track.amount}$`
+                : track.amount.toLocaleString('ar-EG')}
             </span>
-            <span className="pay-card-currency">{track.currencyAr}</span>
+            <span className="pay-card-currency" dir={track.currency === 'USD' ? 'ltr' : undefined}>
+              {track.currency === 'USD' ? 'USD' : track.currencyAr}
+            </span>
           </div>
         </div>
       </div>
@@ -109,7 +113,7 @@ export default function PaymentInstructionsPanel({
       ) : (
         <a
           className="pay-primary"
-          href={CONTACT_WHATSAPP}
+          href={getAbroadPaymentWhatsAppUrl()}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -121,23 +125,23 @@ export default function PaymentInstructionsPanel({
         </a>
       )}
 
-      <div className="pay-split">
-        <span>أو حوّل يدوياً</span>
-      </div>
+      {track.usesInstapay && (
+        <>
+          <div className="pay-split">
+            <span>أو حوّل يدوياً</span>
+          </div>
 
-      <div className="pay-manual">
-        <span className="pay-manual-phone" dir="ltr">{CONTACT_PHONE_DISPLAY}</span>
-        <button
-          type="button"
-          className={`pay-sheet-copy${copied ? ' is-copied' : ''}`}
-          onClick={handleCopyPhone}
-        >
-          {copied ? 'تم النسخ' : 'نسخ الرقم'}
-        </button>
-      </div>
-
-      {!track.usesInstapay && (
-        <p className="pay-account">InstaPay غير متاح — {formatTrackFee(track)}</p>
+          <div className="pay-manual">
+            <span className="pay-manual-phone" dir="ltr">{CONTACT_PHONE_DISPLAY}</span>
+            <button
+              type="button"
+              className={`pay-sheet-copy${copied ? ' is-copied' : ''}`}
+              onClick={handleCopyPhone}
+            >
+              {copied ? 'تم النسخ' : 'نسخ الرقم'}
+            </button>
+          </div>
+        </>
       )}
 
       <p className="pay-sheet-tip">بعد التحويل احتفظ بصورة الإيصال لرفعها في الخطوة التالية</p>
