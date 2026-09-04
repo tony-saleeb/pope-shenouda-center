@@ -3,8 +3,6 @@
 import { useAuth } from '@/lib/auth/context';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
 import Link from 'next/link';
 
 interface NavItem {
@@ -144,29 +142,40 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [user, role, loading, router, pathname]);
 
-  // Real-time listener for pending review requests
   useEffect(() => {
     if (!user || role !== 'admin') {
       setPendingCount(0);
       return;
     }
 
-    const q = query(
-      collection(db, 'registrants'),
-      where('status', 'in', ['manual_review', 'pending_verification'])
-    );
+    let cancelled = false;
+    const currentUser = user;
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        setPendingCount(snapshot.size);
-      },
-      (err) => {
-        console.error('Error listening to pending review count:', err);
+    async function loadPendingCount() {
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await fetch('/api/admin/stats', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok || cancelled) return;
+        const payload = (await response.json()) as { pending?: number; review?: number };
+        if (!cancelled) {
+          setPendingCount((payload.pending ?? 0) + (payload.review ?? 0));
+        }
+      } catch (err) {
+        console.error('Error loading pending review count:', err);
       }
-    );
+    }
 
-    return () => unsubscribe();
+    void loadPendingCount();
+    const interval = setInterval(() => {
+      void loadPendingCount();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [user, role]);
 
   // Don't apply admin wrapper or auth check to /admin/login page

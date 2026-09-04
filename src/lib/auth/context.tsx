@@ -13,8 +13,7 @@ import {
   signOut as firebaseSignOut,
   User,
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db, isFirebaseConfigured } from '@/lib/firebase/client';
+import { auth, isFirebaseConfigured } from '@/lib/firebase/client';
 import type { StaffRole } from '@/lib/types';
 
 interface AuthContextValue {
@@ -35,21 +34,13 @@ const AuthContext = createContext<AuthContextValue>({
 
 async function getUserRole(user: User): Promise<StaffRole | null> {
   try {
-    const tokenResult = await user.getIdTokenResult();
-    if (tokenResult.claims.role) {
-      return tokenResult.claims.role as StaffRole;
-    }
-
-    const email = user.email?.toLowerCase();
-    if (!email) return null;
-
-    if (email === 'tonysaleeb23@gmail.com') return 'admin';
-
-    // Check Firestore admins collection
-    const adminDoc = await getDoc(doc(db, 'admins', email));
-    if (adminDoc.exists()) {
-      return 'admin';
-    }
+    const token = await user.getIdToken();
+    const response = await fetch('/api/admin/whoami', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { role?: StaffRole | null };
+    return payload.role === 'admin' || payload.role === 'usher' ? payload.role : null;
   } catch (err) {
     console.error('Error determining user role:', err);
   }

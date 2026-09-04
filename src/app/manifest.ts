@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'مركز البابا شنودة للتاريخ الكنسي',
     short_name: 'مركز شنودة',
-    description: 'نظام تسجيل دورة التاريخ الكنسي — مركز البابا شنودة',
+    description: 'نظام تسجيل دراسة التاريخ الكنسي — مركز البابا شنودة',
     start_url: '/',
     display: 'standalone',
     background_color: '#000000',

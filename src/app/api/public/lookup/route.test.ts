@@ -20,10 +20,13 @@ vi.mock('@/lib/ratelimit', () => ({
 import { getAdminDb } from '@/lib/firebase/admin';
 import { sendAutomatedWhatsAppTicket } from '@/lib/whatsapp/api';
 
+const ANTI_ENUMERATION_MESSAGE =
+  'لو الرقم مسجّل عندنا، هيوصلك رابط كود الحضور (QR) على الواتساب خلال دقائق.';
+
 function mockDb(registrantTrack: string) {
   (getAdminDb as any).mockReturnValue({
     collection: (name: string) => ({
-      doc: (id: string) => ({
+      doc: () => ({
         get: vi.fn().mockResolvedValue(
           name === 'phoneIndex'
             ? { exists: true, data: () => ({ registrantId: 'reg-456' }) }
@@ -54,7 +57,7 @@ describe('POST /api/public/lookup', () => {
     expect(json.messageAr).toBe('رقم الموبايل غير صحيح، تأكد من كتابة ١١ رقم يبدأ بـ 01');
   });
 
-  it('returns 404 when phone is not registered', async () => {
+  it('returns the same 200 body when phone is not registered', async () => {
     (getAdminDb as any).mockReturnValue({
       collection: () => ({
         doc: () => ({ get: vi.fn().mockResolvedValue({ exists: false }) }),
@@ -68,14 +71,15 @@ describe('POST /api/public/lookup', () => {
     });
 
     const res = await POST(req);
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.success).toBe(false);
-    expect(json.messageAr).toContain('غير مسجّل لدينا');
+    expect(json.success).toBe(true);
+    expect(json.messageAr).toBe(ANTI_ENUMERATION_MESSAGE);
+    expect(json.registrantId).toBeUndefined();
     expect(sendAutomatedWhatsAppTicket).not.toHaveBeenCalled();
   });
 
-  it('sends WhatsApp for onsite (انتظامي) track', async () => {
+  it('sends WhatsApp for onsite (انتظامي) track without leaking registrantId', async () => {
     mockDb('onsite_exam_onsite');
 
     const req = new NextRequest('http://localhost/api/public/lookup', {
@@ -88,25 +92,29 @@ describe('POST /api/public/lookup', () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.success).toBe(true);
-    expect(json.attendanceQrIssued).toBe(true);
-    expect(json.registrantId).toBe('reg-456');
+    expect(json.messageAr).toBe(ANTI_ENUMERATION_MESSAGE);
+    expect(json.registrantId).toBeUndefined();
     expect(sendAutomatedWhatsAppTicket).toHaveBeenCalledWith('01012345678', 'reg-456');
   });
 
-  it('does not send WhatsApp for non-onsite tracks', async () => {
-    mockDb('online_exam_onsite');
+  it.each(['online_exam_onsite', 'online_no_exam', 'abroad'] as const)(
+    'does not send WhatsApp for non-onsite track %s',
+    async (track) => {
+      mockDb(track);
 
-    const req = new NextRequest('http://localhost/api/public/lookup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: '01012345678' }),
-    });
+      const req = new NextRequest('http://localhost/api/public/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: '01012345678' }),
+      });
 
-    const res = await POST(req);
-    expect(res.status).toBe(200);
-    const json = await res.json();
-    expect(json.success).toBe(true);
-    expect(json.attendanceQrIssued).toBe(false);
-    expect(sendAutomatedWhatsAppTicket).not.toHaveBeenCalled();
-  });
+      const res = await POST(req);
+      expect(res.status).toBe(200);
+      const json = await res.json();
+      expect(json.success).toBe(true);
+      expect(json.messageAr).toBe(ANTI_ENUMERATION_MESSAGE);
+      expect(json.registrantId).toBeUndefined();
+      expect(sendAutomatedWhatsAppTicket).not.toHaveBeenCalled();
+    }
+  );
 });

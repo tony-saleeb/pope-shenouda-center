@@ -1,11 +1,6 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import {
-  collection, query, where, orderBy, limit, getDocs,
-  startAfter, QueryDocumentSnapshot,
-} from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
 import type { Registrant } from '@/lib/types';
 import { formatTrackTitle, getTrack, trackRequiresAttendanceQr } from '@/lib/registrationTracks';
@@ -24,56 +19,49 @@ export default function ReviewPage() {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(true);
   const [approvedItems, setApprovedItems] = useState<Set<string>>(new Set());
   const [selectedImageModal, setSelectedImageModal] = useState<{ url: string; name?: string } | null>(null);
 
-  const PAGE_SIZE = 20;
-
-  const fetchItems = useCallback(async (after?: QueryDocumentSnapshot) => {
+  const fetchItems = useCallback(async (cursor?: string | null) => {
+    if (!user) return;
     try {
-      const statuses = activeTab === 'pending'
-        ? ['manual_review', 'pending_verification']
-        : ['approved', 'auto_approved'];
-
-      let q = query(
-        collection(db, 'registrants'),
-        where('status', 'in', statuses),
-        orderBy('createdAt', 'desc'),
-        limit(PAGE_SIZE)
-      );
-
-      if (after) {
-        q = query(q, startAfter(after));
+      const token = await user.getIdToken();
+      const params = new URLSearchParams({ tab: activeTab });
+      if (cursor) params.set('cursor', cursor);
+      const response = await fetch(`/api/admin/review?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error('review_failed');
       }
+      const payload = (await response.json()) as {
+        items?: ReviewItem[];
+        nextCursor?: string | null;
+      };
+      const newItems = Array.isArray(payload.items) ? payload.items : [];
 
-      const snapshot = await getDocs(q);
-      const newItems = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        data: doc.data() as Registrant,
-      }));
-
-      if (after) {
+      if (cursor) {
         setItems((prev) => [...prev, ...newItems]);
       } else {
         setItems(newItems);
       }
 
-      setLastDoc(snapshot.docs[snapshot.docs.length - 1] || null);
-      setHasMore(snapshot.docs.length === PAGE_SIZE);
+      setNextCursor(payload.nextCursor ?? null);
+      setHasMore(Boolean(payload.nextCursor));
     } catch (error) {
       console.error('Error fetching review items:', error);
     } finally {
       setLoading(false);
     }
-  }, [activeTab]);
+  }, [activeTab, user]);
 
   useEffect(() => {
     setLoading(true);
     setItems([]);
-    setLastDoc(null);
-    fetchItems();
+    setNextCursor(null);
+    void fetchItems();
   }, [activeTab, fetchItems]);
 
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null);
@@ -142,19 +130,6 @@ export default function ReviewPage() {
     });
   };
 
-  const getConfidenceBadge = (confidence: string | null) => {
-    switch (confidence) {
-      case 'high':
-        return <span className="badge badge-approved">دقة عالية</span>;
-      case 'low':
-        return <span className="badge badge-pending">دقة منخفضة</span>;
-      case 'failed':
-        return <span className="badge badge-rejected">فشل المستخرج</span>;
-      default:
-        return <span className="badge badge-review">بانتظار التحقق</span>;
-    }
-  };
-
   return (
     <div>
       {/* Page Title Bar */}
@@ -180,7 +155,7 @@ export default function ReviewPage() {
         <div>
           <button
             className="btn btn-ghost"
-            onClick={() => { setLoading(true); fetchItems(); }}
+            onClick={() => { setLoading(true); void fetchItems(); }}
             style={{
               padding: '0.625rem 1.25rem',
               fontSize: '0.875rem',
@@ -345,7 +320,7 @@ export default function ReviewPage() {
                           <span>تمت الموافقة</span>
                         </span>
                       ) : (
-                        getConfidenceBadge(item.data.ocrConfidence)
+                        <span className="badge badge-review">بانتظار المراجعة</span>
                       )}
                     </div>
 
@@ -378,38 +353,6 @@ export default function ReviewPage() {
                           <line x1="12" y1="18" x2="12.01" y2="18" />
                         </svg>
                       </div>
-
-                      {item.data.ocrExtractedReference && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="4" y1="9" x2="20" y2="9" />
-                            <line x1="4" y1="15" x2="20" y2="15" />
-                            <line x1="10" y1="3" x2="8" y2="21" />
-                            <line x1="16" y1="3" x2="14" y2="21" />
-                          </svg>
-                          <span>مرجع: {item.data.ocrExtractedReference}</span>
-                        </div>
-                      )}
-
-                      {item.data.ocrExtractedAmount != null && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="2" y="6" width="20" height="12" rx="2" />
-                            <circle cx="12" cy="12" r="2" />
-                          </svg>
-                          <span style={{ fontWeight: 700, color: '#fbba33' }}>{item.data.ocrExtractedAmount} جم</span>
-                        </div>
-                      )}
-
-                      {item.data.ocrExtractedSenderName && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                            <circle cx="12" cy="7" r="4" />
-                          </svg>
-                          <span>المرسل: {item.data.ocrExtractedSenderName}</span>
-                        </div>
-                      )}
                     </div>
 
                   </div>
@@ -576,7 +519,7 @@ export default function ReviewPage() {
           {hasMore && (
             <button
               className="btn btn-ghost btn-full"
-              onClick={() => lastDoc && fetchItems(lastDoc)}
+              onClick={() => nextCursor && void fetchItems(nextCursor)}
               style={{
                 padding: '1rem',
                 marginTop: '1rem',

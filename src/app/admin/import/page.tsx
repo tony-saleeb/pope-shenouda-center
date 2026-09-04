@@ -10,7 +10,6 @@ export default function ImportPage() {
   const [manualAmount, setManualAmount] = useState('');
   const [manualSender, setManualSender] = useState('');
   const [importing, setImporting] = useState(false);
-  const [reconciling, setReconciling] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [resultType, setResultType] = useState<'success' | 'error'>('success');
 
@@ -88,39 +87,6 @@ export default function ImportPage() {
     }
   };
 
-  const handleReconcile = async () => {
-    if (!user) return;
-    setReconciling(true);
-    setResult(null);
-
-    try {
-      const token = await user.getIdToken(true);
-      const response = await fetch('/api/admin/reconcile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        setResultType('success');
-        setResult(
-          `تمت المطابقة: ${data.matched} موافقة تلقائية، ${data.duplicates} مكرر، ${data.reviewed} تم تحويلها للمراجعة اليدوية`
-        );
-      } else {
-        setResultType('error');
-        setResult(data.error || 'حدث خطأ أثناء تنفيذ المطابقة');
-      }
-    } catch {
-      setResultType('error');
-      setResult('حدث خطأ في الاتصال بالسيرفر');
-    } finally {
-      setReconciling(false);
-    }
-  };
-
   return (
     <div>
       {/* Header */}
@@ -133,7 +99,7 @@ export default function ImportPage() {
           كشف الحساب البنكي
         </h1>
         <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
-          استيراد المعاملات البنكية ومطابقتها الآلية مع بيانات المستخرجات
+          استيراد المعاملات البنكية إلى قاعدة البيانات
         </p>
       </div>
 
@@ -308,54 +274,6 @@ export default function ImportPage() {
             )}
           </button>
         </div>
-      </div>
-
-      {/* Reconcile Section */}
-      <div className="glass-card" style={{
-        marginTop: '2rem',
-        padding: '2rem',
-        textAlign: 'center',
-        border: '1px solid rgba(242, 158, 19, 0.25)',
-        background: 'rgba(31, 19, 6, 0.75)',
-      }}>
-        <div style={{
-          width: '3.5rem', height: '3.5rem', borderRadius: '1rem',
-          background: 'linear-gradient(135deg, rgba(242, 158, 19, 0.25), rgba(179, 130, 63, 0.15))',
-          border: '1px solid rgba(242, 158, 19, 0.35)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          margin: '0 auto 1rem', color: '#fbba33',
-        }}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="23 4 23 10 17 10" />
-            <polyline points="1 20 1 14 7 14" />
-            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-          </svg>
-        </div>
-
-        <h2 style={{ fontSize: '1.375rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.5rem' }}>
-          مطابقة المعاملات التلقائية
-        </h2>
-        <p style={{ fontSize: '0.875rem', color: 'rgba(247, 240, 228, 0.6)', marginBottom: '1.5rem', maxWidth: '30rem', margin: '0 auto 1.5rem', lineHeight: 1.6 }}>
-          تشغيل خوارزمية المطابقة لمقارنة أرقام المراجع والمبالغ المستخرجة من الإيصالات مع كشف الحساب البنكي.
-        </p>
-
-        <button
-          className="btn btn-accent btn-lg"
-          onClick={handleReconcile}
-          disabled={reconciling}
-          style={{ minWidth: '18rem', margin: '0 auto' }}
-        >
-          {reconciling ? (
-            <><span className="spinner" /> جاري التشغيل والمطابقة...</>
-          ) : (
-            <>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-              <span>تشغيل خوارزمية المطابقة الآن</span>
-            </>
-          )}
-        </button>
       </div>
     </div>
   );

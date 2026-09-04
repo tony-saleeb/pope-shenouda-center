@@ -88,23 +88,31 @@ export async function sendAutomatedWhatsAppTicket(
 
   // 3. Check Generic Webhook / Local Bot
   const webhookUrl = process.env.WHATSAPP_WEBHOOK_URL;
+  const webhookToken = process.env.WHATSAPP_BOT_TOKEN;
   if (webhookUrl) {
-    try {
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          phone: cleanPhone,
-          registrantId,
-          ticketUrl,
-          message: messageText,
-        }),
-      });
-      if (response.ok) {
-        return { sent: true, provider: 'webhook' };
+    if (!webhookToken) {
+      console.error('WHATSAPP_WEBHOOK_URL is set but WHATSAPP_BOT_TOKEN is missing; skipping webhook');
+    } else {
+      try {
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${webhookToken}`,
+          },
+          body: JSON.stringify({
+            phone: cleanPhone,
+            registrantId,
+            ticketUrl,
+            message: messageText,
+          }),
+        });
+        if (response.ok) {
+          return { sent: true, provider: 'webhook' };
+        }
+      } catch (err) {
+        console.error('WhatsApp Webhook error:', err);
       }
-    } catch (err) {
-      console.error('WhatsApp Webhook error:', err);
     }
   }
 

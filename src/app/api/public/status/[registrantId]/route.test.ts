@@ -81,4 +81,31 @@ describe('GET /api/public/status/[registrantId]', () => {
     expect(json.adminNotes).toBeUndefined();
     expect(json.ocrExtractedAmount).toBeUndefined();
   });
+
+  it('marks attendanceQrRequired false for non-انتظامي tracks', async () => {
+    const mockGet = vi.fn().mockResolvedValue({
+      exists: true,
+      data: () => ({
+        status: 'pending_verification',
+        fullName: 'John Doe',
+        church: 'St. Mark',
+        track: 'online_no_exam',
+        createdAt: { toDate: () => new Date('2026-07-26T20:00:00Z') },
+      }),
+    });
+
+    (getAdminDb as any).mockReturnValue({
+      collection: () => ({
+        doc: () => ({ get: mockGet }),
+      }),
+    });
+
+    const req = new NextRequest('http://localhost/api/public/status/reg-online');
+    const res = await GET(req, { params: Promise.resolve({ registrantId: 'reg-online' }) });
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json.track).toBe('online_no_exam');
+    expect(json.attendanceQrRequired).toBe(false);
+  });
 });

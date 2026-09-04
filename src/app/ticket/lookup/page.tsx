@@ -1,27 +1,20 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { resolveLookupPhoneId, sanitizePhoneInput, VALIDATION_MESSAGES } from '@/lib/validation';
 import Link from 'next/link';
 import Header from '@/components/Header';
 
 export default function TicketLookupPage() {
-  const router = useRouter();
   const [phone, setPhone] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const [foundRegistrantId, setFoundRegistrantId] = useState<string | null>(null);
-  const [notFoundError, setNotFoundError] = useState<string | null>(null);
-
   const handleLookup = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccessMessage(null);
-    setNotFoundError(null);
-    setFoundRegistrantId(null);
 
     const normalized = resolveLookupPhoneId(phone);
 
@@ -47,21 +40,12 @@ export default function TicketLookupPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        if (res.status === 404) {
-          setNotFoundError(data.messageAr || 'عفواً، هذا الرقم غير مسجّل لدينا. يرجى التأكد من كتابة الرقم بشكل صحيح أو القيام بالتسجيل أولاً.');
-        } else {
-          setError(data.messageAr || VALIDATION_MESSAGES.genericError);
-        }
+        setError(data.messageAr || VALIDATION_MESSAGES.genericError);
         setLoading(false);
         return;
       }
 
-      if (data.registrantId) {
-        router.push(`/status/${data.registrantId}`);
-        return;
-      }
-
-      setSuccessMessage(data.messageAr || 'تم العثور على حسابك بنجاح!');
+      setSuccessMessage(data.messageAr || 'لو الرقم مسجّل عندنا، هيوصلك رابط كود الحضور (QR) على الواتساب خلال دقائق.');
       setLoading(false);
     } catch (err) {
       console.error('Lookup error:', err);
@@ -101,42 +85,7 @@ export default function TicketLookupPage() {
             </p>
           </div>
 
-          {/* Not Registered Error Card */}
-          {notFoundError ? (
-            <div style={{
-              padding: '1.25rem',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              borderRadius: '0.75rem',
-              color: '#f87171',
-              fontSize: '0.9375rem',
-              lineHeight: 1.6,
-              textAlign: 'center',
-              marginBottom: '1.5rem',
-            }}>
-              <p style={{ fontWeight: 700, marginBottom: '0.25rem' }}>❌ الرقم غير مسجّل لدينا</p>
-              <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.8)', marginBottom: '1.25rem' }}>
-                {notFoundError}
-              </p>
-              <div style={{ display: 'flex', gap: '0.5rem', flexDirection: 'column' }}>
-                <Link
-                  href="/register"
-                  className="btn btn-primary btn-full"
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                >
-                  📝 التسجيل في الدورة الآن
-                </Link>
-                <button
-                  onClick={() => { setNotFoundError(null); setError(null); }}
-                  className="btn btn-secondary btn-full"
-                  style={{ marginTop: '0.25rem' }}
-                >
-                  جرب رقم آخر
-                </button>
-              </div>
-            </div>
-          ) : successMessage ? (
-            /* Success Card */
+          {successMessage ? (
             <div style={{
               padding: '1.25rem',
               background: 'rgba(16, 185, 129, 0.1)',
@@ -148,23 +97,18 @@ export default function TicketLookupPage() {
               textAlign: 'center',
               marginBottom: '1.5rem',
             }}>
-              <p style={{ fontWeight: 700, marginBottom: '0.25rem' }}>✓ تم العثور على تسجيلك بنجاح!</p>
+              <p style={{ fontWeight: 700, marginBottom: '0.25rem' }}>✓ تم استلام طلبك</p>
               <p style={{ fontSize: '0.875rem', color: 'rgba(255,255,255,0.85)', marginBottom: '1.25rem' }}>
                 {successMessage}
               </p>
-
-              {foundRegistrantId ? (
-                <Link
-                  href={`/ticket/${foundRegistrantId}`}
-                  className="btn btn-primary btn-full"
-                  style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                >
-                  🎟️ عرض وتنزيل التذكرة مباشرة
-                </Link>
-              ) : null}
+              <button
+                onClick={() => { setSuccessMessage(null); setError(null); }}
+                className="btn btn-secondary btn-full"
+              >
+                بحث برقم آخر
+              </button>
             </div>
           ) : (
-            /* Form */
             <form onSubmit={handleLookup} style={{ display: 'grid', gap: '1rem' }}>
               <div>
                 <label className="form-label" htmlFor="phone">رقم الموبايل</label>

@@ -125,8 +125,15 @@ export function safeImageSrc(url: unknown): string | null {
     return trimmed;
   }
 
-  // Allow HTTPS Firebase Storage URLs
   if (/^https:\/\/firebasestorage\.googleapis\.com\//.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^https:\/\/storage\.googleapis\.com\//.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^https:\/\/storage\.cloud\.google\.com\//.test(trimmed)) {
     return trimmed;
   }
 

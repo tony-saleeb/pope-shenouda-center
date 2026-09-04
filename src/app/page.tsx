@@ -43,7 +43,7 @@ export default function HomePage() {
           color: '#f3e6c8',
           textShadow: '0 2px 18px rgba(0, 0, 0, 0.45)',
         }}>
-          دورة التاريخ الكنسي
+          دراسة التاريخ الكنسي
         </h1>
 
         <p style={{
@@ -52,7 +52,7 @@ export default function HomePage() {
           lineHeight: 1.8,
           marginBottom: '0.5rem',
         }}>
-          سجّل في الدورة الآن واحصل على تذكرتك الإلكترونية
+          سجّل في الدراسة الآن واحصل على تذكرتك الإلكترونية
         </p>
 
         <p style={{
@@ -77,7 +77,7 @@ export default function HomePage() {
               cursor: 'pointer',
             }}
           >
-            <span>التسجيل في الدورة</span>
+            <span>التسجيل في الدراسة</span>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'scaleX(-1)' }}>
               <line x1="5" y1="12" x2="19" y2="12" />
               <polyline points="12 5 19 12 12 19" />

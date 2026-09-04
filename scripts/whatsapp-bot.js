@@ -4,6 +4,13 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { timingSafeEqual } = require('crypto');
+
+const BOT_TOKEN = process.env.WHATSAPP_BOT_TOKEN;
+if (!BOT_TOKEN) {
+  console.error('WHATSAPP_BOT_TOKEN is required');
+  process.exit(1);
+}
 
 function findChromeInCache(dir) {
   if (!fs.existsSync(dir)) return null;
@@ -59,6 +66,17 @@ function getExecutablePath() {
 const app = express();
 app.use(express.json());
 
+function requireBotAuth(req, res, next) {
+  const header = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
+  const provided = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
+  const expected = Buffer.from(BOT_TOKEN, 'utf8');
+  const actual = Buffer.from(provided, 'utf8');
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  next();
+}
+
 const executablePath = getExecutablePath();
 if (!executablePath) {
   console.warn('⚠️ Warning: No Chrome or Edge executable found automatically. Puppeteer will attempt default launch.');
@@ -111,7 +129,7 @@ client.on('disconnected', (reason) => {
   console.log('WhatsApp Disconnected:', reason);
 });
 
-app.post('/send-ticket', async (req, res) => {
+app.post('/send-ticket', requireBotAuth, async (req, res) => {
   if (!isReady) {
     return res.status(503).json({ error: 'WhatsApp bot is not connected yet' });
   }
@@ -138,13 +156,14 @@ app.post('/send-ticket', async (req, res) => {
     return res.json({ success: true, phone: cleanPhone });
   } catch (err) {
     console.error(`✗ Failed to send to ${cleanPhone}:`, err);
-    return res.status(500).json({ error: String(err) });
+    return res.status(500).json({ error: 'Failed to send message' });
   }
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`WhatsApp Bot Webhook Server running on http://localhost:${PORT}`);
+const BIND_HOST = process.env.BIND_HOST || '127.0.0.1';
+app.listen(PORT, BIND_HOST, () => {
+  console.log(`WhatsApp Bot Webhook Server running on http://${BIND_HOST}:${PORT}`);
 });
 
 client.initialize();

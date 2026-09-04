@@ -1,13 +1,11 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase/client';
 import { useAuth } from '@/lib/auth/context';
 import type { RegistrantStatus } from '@/lib/types';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
-import { matchesAdminSearch, safeImageSrc } from '@/lib/validation';
+import { matchesAdminSearch } from '@/lib/validation';
 import { formatTrackTitle, getTrack, trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 import Papa from 'papaparse';
 
@@ -21,7 +19,6 @@ interface RegistrantItem {
   track: string;
   feeAmount: number | null;
   feeCurrency: string;
-  ocrExtractedReference: string | null;
   createdAt: string | null;
 }
 
@@ -127,15 +124,19 @@ export default function RegistrantsPage() {
   };
 
   const openScreenshot = async (item: RegistrantItem) => {
+    if (!user) return;
     setScreenshotLoadingId(item.id);
     try {
-      const snap = await getDoc(doc(db, 'registrants', item.id));
-      const url = snap.exists() ? safeImageSrc(snap.data()?.paymentScreenshotUrl) : null;
-      if (!url) {
+      const token = await user.getIdToken();
+      const response = await fetch(`/api/admin/receipt/${item.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const payload = (await response.json()) as { url?: string };
+      if (!response.ok || !payload.url) {
         alert('تعذّر عرض صورة الإيصال');
         return;
       }
-      setSelectedImageModal({ url, name: item.fullName });
+      setSelectedImageModal({ url: payload.url, name: item.fullName });
     } catch (error) {
       console.error('Error loading screenshot:', error);
       alert('تعذّر عرض صورة الإيصال');
@@ -165,7 +166,6 @@ export default function RegistrantsPage() {
       'رقم الموبايل': item.phoneNumber ? `="${item.phoneNumber}"` : '',
       'رقم الواتساب': (item.whatsappNumber || item.phoneNumber) ? `="${item.whatsappNumber || item.phoneNumber}"` : '',
       'حالة الطلب': STATUS_LABELS[item.status]?.label || item.status,
-      'مرجع الإيصال': item.ocrExtractedReference ? `="${item.ocrExtractedReference}"` : '',
       'تاريخ التسجيل': item.createdAt
         ? new Date(item.createdAt).toLocaleDateString('ar-EG')
         : '',
@@ -192,7 +192,7 @@ export default function RegistrantsPage() {
         paddingBottom: '1.25rem',
       }}>
         <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.25rem' }}>
-          قائمة المسجّلين في الدورة
+          قائمة المسجّلين في الدراسة
         </h1>
         <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
           بحث وسجل كامل لجميع بيانات المسجلين وتصفية الحالات
@@ -435,7 +435,6 @@ export default function RegistrantsPage() {
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>الكنيسة</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>رقم الموبايل</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>حالة الطلب</th>
-                  <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>مرجع الإيصال</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>تاريخ التسجيل</th>
                   <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'center', fontWeight: 700 }}>إجراءات</th>
                 </tr>
@@ -466,9 +465,6 @@ export default function RegistrantsPage() {
                         <span className={`badge ${statusInfo.className}`}>
                           {statusInfo.label}
                         </span>
-                      </td>
-                      <td style={{ fontSize: '0.875rem', color: '#fbba33', padding: '1rem 1.25rem', fontFamily: 'monospace' }}>
-                        {item.ocrExtractedReference || '—'}
                       </td>
                       <td style={{ fontSize: '0.8125rem', color: 'rgba(247, 240, 228, 0.55)', padding: '1rem 1.25rem' }}>
                         {item.createdAt

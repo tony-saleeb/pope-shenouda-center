@@ -5,9 +5,9 @@ import { isFirebaseConfigured } from "@/lib/firebase/client";
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://pope-shenouda-center.vercel.app'),
-  title: "دورة التاريخ الكنسي | مركز البابا شنودة",
+  title: "دراسة التاريخ الكنسي | مركز البابا شنودة",
   description:
-    "نظام تسجيل الحضور لدورة مركز البابا شنودة للتاريخ الكنسي",
+    "نظام تسجيل الحضور لدراسة مركز البابا شنودة للتاريخ الكنسي",
   applicationName: "مركز البابا شنودة للتاريخ الكنسي",
   icons: {
     icon: [{ url: '/icon.png', type: 'image/png', sizes: '512x512' }],
@@ -23,9 +23,9 @@ export const metadata: Metadata = {
     locale: "ar_EG",
     url: "https://pope-shenouda-center.vercel.app",
     siteName: "مركز البابا شنودة للتاريخ الكنسي",
-    title: "دورة التاريخ الكنسي | مركز البابا شنودة",
+    title: "دراسة التاريخ الكنسي | مركز البابا شنودة",
     description:
-      "نظام تسجيل دورة مركز البابا شنودة للتاريخ الكنسي",
+      "نظام تسجيل دراسة مركز البابا شنودة للتاريخ الكنسي",
   },
 };
 

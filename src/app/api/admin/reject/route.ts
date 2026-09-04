@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
 import { FieldValue } from 'firebase-admin/firestore';
+import { genericApiError } from '@/lib/http/apiError';
 
 export async function POST(request: NextRequest) {
   const authResult = await requireAdmin(request);
   if (!authResult.authorized) {
     return authResult.response;
   }
+
+  const correlationId = randomUUID();
 
   try {
     const { registrantId, reason } = await request.json();
@@ -24,12 +28,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Registrant not found' }, { status: 404 });
     }
 
-    // ocrStatus leaves the queue so the nightly OCR run cannot revisit this decision.
     await registrantRef.update({
       status: 'rejected',
       verifiedAt: FieldValue.serverTimestamp(),
       adminNotes: reason || 'Rejected by admin',
-      ocrStatus: 'skipped',
     });
 
     return NextResponse.json({
@@ -37,8 +39,7 @@ export async function POST(request: NextRequest) {
       message: 'Registrant rejected',
     });
   } catch (error) {
-    console.error('Reject error:', error);
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: `خطأ في تنفيذ الرفض: ${errorMessage}` }, { status: 500 });
+    console.error(`[Reject] ${correlationId} failed:`, error);
+    return genericApiError(correlationId, 'حدث خطأ أثناء تنفيذ الرفض');
   }
 }

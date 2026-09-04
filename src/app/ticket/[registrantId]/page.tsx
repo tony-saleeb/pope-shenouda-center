@@ -154,7 +154,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
 
       ctx.fillStyle = '#f7f0e4';
       ctx.font = 'bold 30px system-ui, -apple-system, sans-serif';
-      ctx.fillText('دورة التاريخ الكنسي', width / 2, 165);
+      ctx.fillText('دراسة التاريخ الكنسي', width / 2, 165);
 
       // 5. QR code box (solid white card)
       const qrImg = document.createElement('img');
@@ -324,7 +324,7 @@ export default function TicketPage({ params }: { params: Promise<{ registrantId:
               <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.25rem' }}>
                 رمز QR للحضور
               </p>
-              <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>دورة التاريخ الكنسي</h1>
+              <h1 style={{ fontSize: '1.375rem', fontWeight: 800 }}>دراسة التاريخ الكنسي</h1>
             </div>
 
             {/* QR Code */}
