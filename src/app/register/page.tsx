@@ -711,6 +711,21 @@ export default function RegisterPage() {
 
           {/* Navigation Buttons */}
           <div className="wizard-nav">
+            {currentStep > 0 && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={goBack}
+                disabled={isSubmitting}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
+                </svg>
+                <span>رجوع</span>
+              </button>
+            )}
+
             {isLastStep ? (
               <button
                 className="btn btn-accent"
@@ -739,21 +754,6 @@ export default function RegisterPage() {
                     <path d="m12 5 7 7-7 7" />
                   </svg>
                 </>
-              </button>
-            )}
-
-            {currentStep > 0 && (
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={goBack}
-                disabled={isSubmitting}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14" />
-                  <path d="m12 5 7 7-7 7" />
-                </svg>
-                <span>رجوع</span>
               </button>
             )}
           </div>
