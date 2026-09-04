@@ -33,7 +33,8 @@ export const viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
-  themeColor: "#000000",
+  viewportFit: "cover" as const,
+  themeColor: "#1a1208",
 };
 
 function ConfigWarning() {
