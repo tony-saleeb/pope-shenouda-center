@@ -26,6 +26,7 @@ import {
 import { isKnownDialCode } from '@/lib/countries';
 import { isRegistrationTrack, TRACKS } from '@/lib/registrationTracks';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
+import { scheduleReviewQueueSync } from '@/lib/reviewQueue';
 
 export const runtime = 'nodejs';
 
@@ -206,6 +207,8 @@ export async function POST(request: NextRequest) {
       }
       throw txError;
     }
+
+    scheduleReviewQueueSync(db);
 
     return NextResponse.json({ success: true, registrantId });
   } catch (error) {
