@@ -20,7 +20,6 @@ export function attendanceQrApprovedMessage(ticketUrl: string): string {
 export function abroadPaymentInquiryMessage(): string {
   const fee = TRACKS.abroad;
   return (
-    `السلام عليكم ورحمة الله.\n\n` +
     `أنا مقيم خارج مصر وأرغب في التسجيل في دراسة التاريخ الكنسي.\n\n` +
     `المسار: المقيمون خارج مصر\n` +
     `المبلغ: ${fee.amount}$ USD\n\n` +
