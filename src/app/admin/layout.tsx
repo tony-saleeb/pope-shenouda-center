@@ -1,6 +1,8 @@
 'use client';
 
 import { useAuth } from '@/lib/auth/context';
+import { db } from '@/lib/firebase/client';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -149,31 +151,49 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     let cancelled = false;
+    let live = false;
     const currentUser = user;
+    const queueRef = doc(db, 'meta', 'reviewQueue');
 
     async function loadPendingCount() {
       try {
         const token = await currentUser.getIdToken();
-        const response = await fetch('/api/admin/stats', {
+        const response = await fetch('/api/admin/review-count', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!response.ok || cancelled) return;
-        const payload = (await response.json()) as { pending?: number; review?: number };
-        if (!cancelled) {
-          setPendingCount((payload.pending ?? 0) + (payload.review ?? 0));
+        if (!response.ok || cancelled || live) return;
+        const payload = (await response.json()) as { count?: number };
+        if (!cancelled && !live && typeof payload.count === 'number') {
+          setPendingCount(Math.max(0, payload.count));
         }
       } catch (err) {
         console.error('Error loading pending review count:', err);
       }
     }
 
+    const unsubscribe = onSnapshot(
+      queueRef,
+      (snap) => {
+        if (cancelled || !snap.exists()) return;
+        const count = snap.data()?.count;
+        if (typeof count !== 'number' || !Number.isFinite(count)) return;
+        live = true;
+        setPendingCount(Math.max(0, Math.floor(count)));
+      },
+      (error) => {
+        console.error('Error listening to review queue:', error);
+        live = false;
+      }
+    );
+
     void loadPendingCount();
     const interval = setInterval(() => {
-      void loadPendingCount();
-    }, 30000);
+      if (!live) void loadPendingCount();
+    }, 5000);
 
     return () => {
       cancelled = true;
+      unsubscribe();
       clearInterval(interval);
     };
   }, [user, role]);

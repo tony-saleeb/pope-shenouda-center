@@ -4,6 +4,7 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
 import { FieldValue } from 'firebase-admin/firestore';
 import { genericApiError } from '@/lib/http/apiError';
+import { scheduleReviewQueueSync } from '@/lib/reviewQueue';
 
 export async function POST(request: NextRequest) {
   const authResult = await requireAdmin(request);
@@ -33,6 +34,8 @@ export async function POST(request: NextRequest) {
       verifiedAt: FieldValue.serverTimestamp(),
       adminNotes: reason || 'Rejected by admin',
     });
+
+    scheduleReviewQueueSync(db);
 
     return NextResponse.json({
       success: true,
