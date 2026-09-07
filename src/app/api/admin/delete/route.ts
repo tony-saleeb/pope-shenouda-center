@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
-import { deleteRegistrantReceipt } from '@/lib/firebase/receipts';
+import { deleteRegistrantPortrait, deleteRegistrantReceipt } from '@/lib/firebase/receipts';
 import { genericApiError } from '@/lib/http/apiError';
 import { scheduleReviewQueueSync } from '@/lib/reviewQueue';
 
@@ -51,9 +51,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    if (typeof regData?.nationalId === 'string' && regData.nationalId) {
+      const nationalIdRef = db.collection('nationalIdIndex').doc(regData.nationalId);
+      const nationalIdSnap = await nationalIdRef.get();
+      if (nationalIdSnap.exists) {
+        batch.delete(nationalIdRef);
+      }
+    }
+
     await batch.commit();
     await deleteRegistrantReceipt(
       typeof regData?.paymentScreenshotUrl === 'string' ? regData.paymentScreenshotUrl : null
+    );
+    await deleteRegistrantPortrait(
+      typeof regData?.portraitUrl === 'string' ? regData.portraitUrl : null
     );
 
     scheduleReviewQueueSync(db);

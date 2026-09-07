@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
-import { getReceiptReadUrl } from '@/lib/firebase/receipts';
+import { getPortraitReadUrl, getReceiptReadUrl } from '@/lib/firebase/receipts';
 import { genericApiError } from '@/lib/http/apiError';
 import { APPROVED_STATUSES, PENDING_REVIEW_STATUSES } from '@/lib/registrantStatus';
 import type { FeeCurrency, RegistrationTrack } from '@/lib/registrationTracks';
@@ -72,6 +72,9 @@ export async function GET(request: NextRequest) {
         const receiptUrl = await getReceiptReadUrl(
           typeof data.paymentScreenshotUrl === 'string' ? data.paymentScreenshotUrl : null
         );
+        const portraitUrl = await getPortraitReadUrl(
+          typeof data.portraitUrl === 'string' ? data.portraitUrl : null
+        );
 
         const payload: Registrant = {
           fullName: typeof data.fullName === 'string' ? data.fullName : '',
@@ -87,6 +90,13 @@ export async function GET(request: NextRequest) {
           feeAmount: typeof data.feeAmount === 'number' ? data.feeAmount : null,
           feeCurrency: (typeof data.feeCurrency === 'string' ? data.feeCurrency : null) as FeeCurrency | null,
           countryDial: typeof data.countryDial === 'string' ? data.countryDial : null,
+          nationalId: typeof data.nationalId === 'string' ? data.nationalId : null,
+          email: typeof data.email === 'string' ? data.email : null,
+          eparchy: typeof data.eparchy === 'string' ? data.eparchy : null,
+          confessionFather: typeof data.confessionFather === 'string' ? data.confessionFather : null,
+          confessionFatherChurch: typeof data.confessionFatherChurch === 'string' ? data.confessionFatherChurch : null,
+          currentService: typeof data.currentService === 'string' ? data.currentService : null,
+          portraitUrl: portraitUrl || '',
         };
 
         return { id: docSnap.id, data: payload, createdAt: toIso(data.createdAt) };

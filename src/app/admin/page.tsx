@@ -154,22 +154,10 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      {/* Header section */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: '2.5rem',
-        borderBottom: '1px solid rgba(242, 158, 19, 0.12)',
-        paddingBottom: '1.25rem',
-      }}>
+      <div className="admin-page-head">
         <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.25rem' }}>
-            نظرة عامة على الإحصائيات
-          </h1>
-          <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
-            متابعة أعداد التسجيلات والحضور — يتم التحديث كل 30 ثانية
-          </p>
+          <h1>نظرة عامة على الإحصائيات</h1>
+          <p>متابعة أعداد التسجيلات والحضور — يتم التحديث كل 30 ثانية</p>
         </div>
       </div>
 
@@ -258,14 +246,14 @@ export default function AdminDashboard() {
       </div>
 
       {/* Analytics Chart */}
-      <div className="glass-card" style={{ marginTop: '2.5rem', padding: '2rem', border: '1px solid rgba(242, 158, 19, 0.2)', background: 'rgba(31, 19, 6, 0.65)' }}>
+      <div className="glass-card" style={{ marginTop: '1.5rem', padding: '1.25rem', border: '1px solid rgba(242, 158, 19, 0.2)', background: 'rgba(31, 19, 6, 0.65)' }}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '1.5rem' }}>
           توزيع حالات التسجيل
         </h2>
         {loading ? (
           <div className="skeleton" style={{ width: '100%', height: '300px', borderRadius: '0.75rem' }} />
         ) : (
-          <div style={{ width: '100%', height: '300px' }} dir="ltr">
+          <div className="admin-chart" dir="ltr">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={[

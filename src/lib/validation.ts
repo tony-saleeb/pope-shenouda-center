@@ -73,6 +73,44 @@ export function isValidName(name: string): boolean {
   return words.length >= 3 && words.every((w) => w.length >= 2);
 }
 
+/** Convert Arabic or English digits and keep at most 14 national-ID digits. */
+export function sanitizeNationalIdInput(value: string): string {
+  return digitsOnlyPhone(value).slice(0, 14);
+}
+
+/**
+ * Egyptian national ID: 14 digits, century 2 (1900s) or 3 (2000s), valid birth date.
+ */
+export function isValidEgyptianNationalId(value: string): boolean {
+  const digits = sanitizeNationalIdInput(value);
+  if (!/^[23]\d{13}$/.test(digits)) return false;
+  const year = Number(`${digits[0] === '2' ? '19' : '20'}${digits.slice(1, 3)}`);
+  const month = Number(digits.slice(3, 5));
+  const day = Number(digits.slice(5, 7));
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
+}
+
+export function isValidEmail(value: string): boolean {
+  const email = value.trim();
+  if (email.length < 6 || email.length > 120) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+export function isValidShortText(value: string, min = 2, max = 120): boolean {
+  if (typeof value !== 'string') return false;
+  const text = value.trim().replace(/\s+/g, ' ');
+  return text.length >= min && text.length <= max;
+}
+
+export function normalizeShortText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
 /** Check if an amount is within tolerance of the expected amount */
 export function isAmountWithinTolerance(
   actual: number,
@@ -95,6 +133,16 @@ export const VALIDATION_MESSAGES = {
   trackRequired: 'برجاء اختيار نوع التسجيل',
   whatsappRequired: 'برجاء إدخال رقم الواتساب',
   whatsappInvalid: 'رقم الواتساب غير صحيح، تأكد من كتابة ١١ رقم يبدأ بـ 01',
+  nationalIdRequired: 'برجاء إدخال الرقم القومي',
+  nationalIdInvalid: 'الرقم القومي غير صحيح، تأكد من كتابة ١٤ رقم',
+  duplicateNationalId: 'هذا الرقم القومي مسجّل بالفعل',
+  emailRequired: 'برجاء إدخال البريد الإلكتروني',
+  emailInvalid: 'البريد الإلكتروني غير صحيح',
+  eparchyRequired: 'برجاء إدخال الإيبارشية',
+  confessionFatherRequired: 'برجاء إدخال اسم أب الاعتراف',
+  confessionFatherChurchRequired: 'برجاء إدخال اسم كنيسة أب الاعتراف',
+  currentServiceRequired: 'برجاء إدخال الخدمة الحالية',
+  portraitRequired: 'برجاء إرفاق الصورة الشخصية',
   screenshotRequired: 'برجاء إرفاق صورة إيصال الدفع',
   duplicatePhone: 'هذا الرقم مسجّل بالفعل',
   uploadFailed: 'فشل رفع الصورة، برجاء المحاولة مرة أخرى',
