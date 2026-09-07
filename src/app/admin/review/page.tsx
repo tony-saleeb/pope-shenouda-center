@@ -1,33 +1,84 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from '@/lib/auth/context';
 import type { Registrant } from '@/lib/types';
 import { formatTrackTitle, getTrack, trackRequiresAttendanceQr } from '@/lib/registrationTracks';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
 import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
-import { safeImageSrc } from '@/lib/validation';
+import { loadAdminStoredImage } from '@/lib/adminStoredImage';
 
 interface ReviewItem {
   id: string;
   data: Registrant;
+  hasPortrait?: boolean;
+  hasReceipt?: boolean;
 }
 
 function ReviewThumb({
-  url,
+  registrantId,
+  kind,
   name,
   title,
   alt,
   onOpen,
 }: {
-  url: string;
+  registrantId: string;
+  kind: 'portrait' | 'receipt';
   name: string;
   title: string;
   alt: string;
   onOpen: (url: string, name: string) => void;
 }) {
-  const validScreenshot = safeImageSrc(url);
-  if (!validScreenshot) {
+  const { user } = useAuth();
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const frameRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const node = frameRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '160px' }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible || !user) return;
+    let cancelled = false;
+    const currentUser = user;
+    void (async () => {
+      try {
+        const src = await loadAdminStoredImage(
+          () => currentUser.getIdToken(),
+          kind,
+          registrantId
+        );
+        if (cancelled) return;
+        if (!src) {
+          setFailed(true);
+          return;
+        }
+        setUrl(src);
+      } catch {
+        if (!cancelled) setFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, user, kind, registrantId]);
+
+  if (failed) {
     return (
       <div style={{
         width: '6rem',
@@ -49,9 +100,25 @@ function ReviewThumb({
     );
   }
 
+  if (!url) {
+    return (
+      <div
+        ref={frameRef}
+        className="skeleton"
+        style={{
+          width: '6rem',
+          height: '6rem',
+          borderRadius: '0.75rem',
+          flexShrink: 0,
+        }}
+        title={title}
+      />
+    );
+  }
+
   return (
     <div
-      onClick={() => onOpen(validScreenshot, name)}
+      onClick={() => onOpen(url, name)}
       style={{
         width: '6rem',
         height: '6rem',
@@ -66,7 +133,7 @@ function ReviewThumb({
       title={title}
     >
       <img
-        src={validScreenshot}
+        src={url}
         alt={alt}
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />
@@ -149,7 +216,7 @@ export default function ReviewPage() {
     const targetItem = items.find((i) => i.id === registrantId);
 
     try {
-      const token = await user.getIdToken(true);
+      const token = await user.getIdToken();
       const response = await fetch(`/api/admin/${action}`, {
         method: 'POST',
         headers: {
@@ -430,18 +497,20 @@ export default function ReviewPage() {
                   </div>
 
                   <div className="admin-review-thumbs" style={{ display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
-                    {item.data.portraitUrl ? (
+                    {(item.hasPortrait ?? Boolean(item.data.portraitUrl)) ? (
                       <ReviewThumb
-                        url={item.data.portraitUrl}
+                        registrantId={item.id}
+                        kind="portrait"
                         name={item.data.fullName}
                         title="اضغط لمشاهدة الصورة الشخصية"
                         alt="الصورة الشخصية"
                         onOpen={(url, name) => setSelectedImageModal({ url, name })}
                       />
                     ) : null}
-                    {item.data.paymentScreenshotUrl ? (
+                    {(item.hasReceipt ?? Boolean(item.data.paymentScreenshotUrl)) ? (
                       <ReviewThumb
-                        url={item.data.paymentScreenshotUrl}
+                        registrantId={item.id}
+                        kind="receipt"
                         name={item.data.fullName}
                         title="اضغط لمشاهدة الإيصال بوضوح"
                         alt="إيصال الدفع"

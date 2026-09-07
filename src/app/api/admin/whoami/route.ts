@@ -11,14 +11,18 @@ export async function GET(request: NextRequest) {
   }
 
   const email = decoded.email?.toLowerCase();
-  const isAdminByEmail = email ? await isEmailAdmin(email) : false;
   const claimed = decoded.role as StaffRole | undefined;
 
   let role: StaffRole | null = null;
-  if (claimed === 'admin' || isAdminByEmail) {
+  if (claimed === 'admin') {
     role = 'admin';
-  } else if (claimed === 'usher') {
-    role = 'usher';
+  } else {
+    const isAdminByEmail = email ? await isEmailAdmin(email) : false;
+    if (isAdminByEmail) {
+      role = 'admin';
+    } else if (claimed === 'usher') {
+      role = 'usher';
+    }
   }
 
   return NextResponse.json({ role, email: email || null });

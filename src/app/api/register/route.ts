@@ -36,6 +36,7 @@ import { isKnownDialCode } from '@/lib/countries';
 import { isRegistrationTrack, TRACKS } from '@/lib/registrationTracks';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
 import { scheduleReviewQueueSync } from '@/lib/reviewQueue';
+import { invalidateAdminReadCache } from '@/lib/adminReadCache';
 
 export const runtime = 'nodejs';
 
@@ -308,6 +309,7 @@ export async function POST(request: NextRequest) {
     }
 
     scheduleReviewQueueSync(db);
+    invalidateAdminReadCache();
 
     return NextResponse.json({ success: true, registrantId });
   } catch (error) {

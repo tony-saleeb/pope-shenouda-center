@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getAdminReadCache, setAdminReadCache } from '@/lib/adminReadCache';
 
 export const runtime = 'nodejs';
 
@@ -26,6 +27,10 @@ export async function GET(request: NextRequest) {
   }
 
   const correlationId = randomUUID();
+  const cached = getAdminReadCache<{ items: unknown[] }>('registrants');
+  if (cached) {
+    return NextResponse.json(cached);
+  }
 
   try {
     const db = getAdminDb();
@@ -78,7 +83,9 @@ export async function GET(request: NextRequest) {
       return bTime - aTime;
     });
 
-    return NextResponse.json({ items });
+    const payload = { items };
+    setAdminReadCache('registrants', payload, 12_000);
+    return NextResponse.json(payload);
   } catch (error) {
     console.error(`[Admin registrants list] ${correlationId} failed:`, error);
     return NextResponse.json(

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
-import { getPortraitReadUrl, getReceiptReadUrl } from '@/lib/firebase/receipts';
+import { getAdminReadCache, setAdminReadCache } from '@/lib/adminReadCache';
 import { genericApiError } from '@/lib/http/apiError';
 import { APPROVED_STATUSES, PENDING_REVIEW_STATUSES } from '@/lib/registrantStatus';
 import type { FeeCurrency, RegistrationTrack } from '@/lib/registrationTracks';
@@ -42,10 +42,15 @@ export async function GET(request: NextRequest) {
   }
 
   const correlationId = randomUUID();
+  const tab = request.nextUrl.searchParams.get('tab') === 'approved' ? 'approved' : 'pending';
+  const cursor = request.nextUrl.searchParams.get('cursor');
+  const cacheKey = `review:${tab}:${cursor ?? 'first'}`;
+  const cached = getAdminReadCache<{ items: unknown[]; nextCursor: string | null }>(cacheKey);
+  if (cached) {
+    return NextResponse.json(cached);
+  }
 
   try {
-    const tab = request.nextUrl.searchParams.get('tab') === 'approved' ? 'approved' : 'pending';
-    const cursor = request.nextUrl.searchParams.get('cursor');
     const statuses = tab === 'pending' ? PENDING_REVIEW_STATUSES : APPROVED_STATUSES;
 
     const db = getAdminDb();
@@ -53,6 +58,26 @@ export async function GET(request: NextRequest) {
       .collection('registrants')
       .where('status', 'in', statuses)
       .orderBy('createdAt', 'desc')
+      .select(
+        'fullName',
+        'phoneNumber',
+        'whatsappNumber',
+        'church',
+        'status',
+        'adminNotes',
+        'createdAt',
+        'verifiedAt',
+        'track',
+        'feeAmount',
+        'feeCurrency',
+        'countryDial',
+        'nationalId',
+        'email',
+        'eparchy',
+        'confessionFather',
+        'confessionFatherChurch',
+        'currentService'
+      )
       .limit(PAGE_SIZE + 1);
 
     if (cursor) {
@@ -66,47 +91,46 @@ export async function GET(request: NextRequest) {
     const pageDocs = snapshot.docs.slice(0, PAGE_SIZE);
     const hasMore = snapshot.docs.length > PAGE_SIZE;
 
-    const items = await Promise.all(
-      pageDocs.map(async (docSnap) => {
-        const data = docSnap.data();
-        const receiptUrl = await getReceiptReadUrl(
-          typeof data.paymentScreenshotUrl === 'string' ? data.paymentScreenshotUrl : null
-        );
-        const portraitUrl = await getPortraitReadUrl(
-          typeof data.portraitUrl === 'string' ? data.portraitUrl : null
-        );
+    const items = pageDocs.map((docSnap) => {
+      const data = docSnap.data();
+      const payload: Registrant = {
+        fullName: typeof data.fullName === 'string' ? data.fullName : '',
+        phoneNumber: typeof data.phoneNumber === 'string' ? data.phoneNumber : '',
+        whatsappNumber: typeof data.whatsappNumber === 'string' ? data.whatsappNumber : '',
+        church: typeof data.church === 'string' ? data.church : '',
+        paymentScreenshotUrl: '',
+        status: asStatus(data.status),
+        adminNotes: typeof data.adminNotes === 'string' ? data.adminNotes : null,
+        createdAt: data.createdAt as Registrant['createdAt'],
+        verifiedAt: (data.verifiedAt ?? null) as Registrant['verifiedAt'],
+        track: (typeof data.track === 'string' ? data.track : null) as RegistrationTrack | null,
+        feeAmount: typeof data.feeAmount === 'number' ? data.feeAmount : null,
+        feeCurrency: (typeof data.feeCurrency === 'string' ? data.feeCurrency : null) as FeeCurrency | null,
+        countryDial: typeof data.countryDial === 'string' ? data.countryDial : null,
+        nationalId: typeof data.nationalId === 'string' ? data.nationalId : null,
+        email: typeof data.email === 'string' ? data.email : null,
+        eparchy: typeof data.eparchy === 'string' ? data.eparchy : null,
+        confessionFather: typeof data.confessionFather === 'string' ? data.confessionFather : null,
+        confessionFatherChurch: typeof data.confessionFatherChurch === 'string' ? data.confessionFatherChurch : null,
+        currentService: typeof data.currentService === 'string' ? data.currentService : null,
+        portraitUrl: '',
+      };
 
-        const payload: Registrant = {
-          fullName: typeof data.fullName === 'string' ? data.fullName : '',
-          phoneNumber: typeof data.phoneNumber === 'string' ? data.phoneNumber : '',
-          whatsappNumber: typeof data.whatsappNumber === 'string' ? data.whatsappNumber : '',
-          church: typeof data.church === 'string' ? data.church : '',
-          paymentScreenshotUrl: receiptUrl || '',
-          status: asStatus(data.status),
-          adminNotes: typeof data.adminNotes === 'string' ? data.adminNotes : null,
-          createdAt: data.createdAt as Registrant['createdAt'],
-          verifiedAt: (data.verifiedAt ?? null) as Registrant['verifiedAt'],
-          track: (typeof data.track === 'string' ? data.track : null) as RegistrationTrack | null,
-          feeAmount: typeof data.feeAmount === 'number' ? data.feeAmount : null,
-          feeCurrency: (typeof data.feeCurrency === 'string' ? data.feeCurrency : null) as FeeCurrency | null,
-          countryDial: typeof data.countryDial === 'string' ? data.countryDial : null,
-          nationalId: typeof data.nationalId === 'string' ? data.nationalId : null,
-          email: typeof data.email === 'string' ? data.email : null,
-          eparchy: typeof data.eparchy === 'string' ? data.eparchy : null,
-          confessionFather: typeof data.confessionFather === 'string' ? data.confessionFather : null,
-          confessionFatherChurch: typeof data.confessionFatherChurch === 'string' ? data.confessionFatherChurch : null,
-          currentService: typeof data.currentService === 'string' ? data.currentService : null,
-          portraitUrl: portraitUrl || '',
-        };
+      return {
+        id: docSnap.id,
+        data: payload,
+        createdAt: toIso(data.createdAt),
+        hasPortrait: true,
+        hasReceipt: true,
+      };
+    });
 
-        return { id: docSnap.id, data: payload, createdAt: toIso(data.createdAt) };
-      })
-    );
-
-    return NextResponse.json({
+    const body = {
       items,
       nextCursor: hasMore ? pageDocs[pageDocs.length - 1]?.id ?? null : null,
-    });
+    };
+    setAdminReadCache(cacheKey, body, 5_000);
+    return NextResponse.json(body);
   } catch (error) {
     console.error(`[Admin review] ${correlationId} failed:`, error);
     return genericApiError(correlationId);

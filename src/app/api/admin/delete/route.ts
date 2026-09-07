@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/auth/guards';
 import { deleteRegistrantPortrait, deleteRegistrantReceipt } from '@/lib/firebase/receipts';
 import { genericApiError } from '@/lib/http/apiError';
 import { scheduleReviewQueueSync } from '@/lib/reviewQueue';
+import { invalidateAdminReadCache, invalidateAdminImageCache } from '@/lib/adminReadCache';
 
 export async function POST(request: NextRequest) {
   const authResult = await requireAdmin(request);
@@ -68,6 +69,8 @@ export async function POST(request: NextRequest) {
     );
 
     scheduleReviewQueueSync(db);
+    invalidateAdminImageCache(registrantId);
+    invalidateAdminReadCache();
 
     return NextResponse.json({
       success: true,

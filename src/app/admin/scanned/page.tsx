@@ -27,7 +27,7 @@ type ViewMode = 'list' | 'grid';
 
 const PLACEHOLDER_UNKNOWN_CHURCH = 'غير محدد';
 const PLACEHOLDER_UNNAMED = 'دارس بدون اسم';
-const POLL_MS = 20_000;
+const POLL_MS = 45_000;
 
 function cairoMonthKey(now: Date = new Date()): string {
   return cairoDateKey(now)?.slice(0, 7) ?? '';

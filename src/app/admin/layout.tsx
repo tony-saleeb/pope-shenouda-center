@@ -187,14 +187,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
 
     void loadPendingCount();
-    const interval = setInterval(() => {
-      if (!live) void loadPendingCount();
-    }, 5000);
 
     return () => {
       cancelled = true;
       unsubscribe();
-      clearInterval(interval);
     };
   }, [user, role]);
 

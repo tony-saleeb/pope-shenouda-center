@@ -1,5 +1,6 @@
 import { formatEgyptianPhone } from '../utils/formatters';
-import { attendanceQrApprovedMessage } from '../whatsapp/templates';
+import { trackRequiresAttendanceQr } from '../registrationTracks';
+import { attendanceQrApprovedMessage, registrationApprovedMessage } from '../whatsapp/templates';
 
 const FALLBACK_ORIGIN = 'https://pope-shenouda-center.vercel.app';
 
@@ -25,6 +26,23 @@ export function getWhatsAppTicketUrl(registrantId: string, phone: string, baseUr
   const messageText = attendanceQrApprovedMessage(ticketUrl);
 
   const encodedText = encodeURIComponent(messageText);
+  const cleanPhone = formatEgyptianPhone(phone);
+  return `https://wa.me/${cleanPhone}?text=${encodedText}`;
+}
+
+export function getWhatsAppRegistrantUrl(
+  registrantId: string,
+  phone: string,
+  track: string,
+  baseUrl?: string
+): string {
+  if (trackRequiresAttendanceQr(track)) {
+    return getWhatsAppTicketUrl(registrantId, phone, baseUrl);
+  }
+
+  const origin = resolveAppOrigin(baseUrl);
+  const statusUrl = `${origin}/status/${registrantId}`;
+  const encodedText = encodeURIComponent(registrationApprovedMessage(statusUrl));
   const cleanPhone = formatEgyptianPhone(phone);
   return `https://wa.me/${cleanPhone}?text=${encodedText}`;
 }

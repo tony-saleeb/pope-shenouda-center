@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
-import { requireAdmin, PRIMARY_ADMIN_EMAIL } from '@/lib/auth/guards';
+import { requireAdmin, PRIMARY_ADMIN_EMAIL, invalidateAdminEmailCache } from '@/lib/auth/guards';
 import { FieldValue } from 'firebase-admin/firestore';
 import { genericApiError } from '@/lib/http/apiError';
 
@@ -39,25 +39,25 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    const admins: AdminUserRecord[] = [];
+    const admins: AdminUserRecord[] = await Promise.all(
+      [...adminMap.entries()].map(async ([email, meta]) => {
+        let hasAuthAccount = false;
+        try {
+          await getAdminAuth().getUserByEmail(email);
+          hasAuthAccount = true;
+        } catch {
+          hasAuthAccount = false;
+        }
 
-    for (const [email, meta] of adminMap.entries()) {
-      let hasAuthAccount = false;
-      try {
-        await getAdminAuth().getUserByEmail(email);
-        hasAuthAccount = true;
-      } catch {
-        hasAuthAccount = false;
-      }
-
-      admins.push({
-        email,
-        isPrimary: email === PRIMARY_ADMIN_EMAIL.toLowerCase(),
-        hasAuthAccount,
-        createdAt: meta.createdAt,
-        addedBy: meta.addedBy,
-      });
-    }
+        return {
+          email,
+          isPrimary: email === PRIMARY_ADMIN_EMAIL.toLowerCase(),
+          hasAuthAccount,
+          createdAt: meta.createdAt,
+          addedBy: meta.addedBy,
+        };
+      })
+    );
 
     return NextResponse.json({ admins });
   } catch (error) {
@@ -117,6 +117,8 @@ export async function POST(request: NextRequest) {
       authUid: uid || null,
     });
 
+    invalidateAdminEmailCache();
+
     return NextResponse.json({
       success: true,
       message: createdAccount
@@ -154,6 +156,8 @@ export async function DELETE(request: NextRequest) {
 
     // Remove from Firestore
     await db.collection('admins').doc(normalizedEmail).delete();
+
+    invalidateAdminEmailCache();
 
     // Revoke custom claims in Firebase Auth if user exists
     try {

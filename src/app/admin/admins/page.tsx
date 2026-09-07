@@ -20,7 +20,7 @@ export default function AdminsPage() {
   const fetchAdmins = useCallback(async () => {
     if (!user) return;
     try {
-      const token = await user.getIdToken(true);
+      const token = await user.getIdToken();
       const res = await fetch('/api/admin/admins', {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -48,7 +48,7 @@ export default function AdminsPage() {
     setSuccess(null);
 
     try {
-      const token = await user.getIdToken(true);
+      const token = await user.getIdToken();
       const res = await fetch('/api/admin/admins', {
         method: 'POST',
         headers: {
@@ -83,7 +83,7 @@ export default function AdminsPage() {
     if (!user) return;
     setDeletingEmail(targetEmail);
     try {
-      const token = await user.getIdToken(true);
+      const token = await user.getIdToken();
       const res = await fetch('/api/admin/admins', {
         method: 'DELETE',
         headers: {

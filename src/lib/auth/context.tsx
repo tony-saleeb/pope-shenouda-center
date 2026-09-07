@@ -14,6 +14,7 @@ import {
   User,
 } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '@/lib/firebase/client';
+import { PRIMARY_ADMIN_EMAIL, isPrimaryAdminEmail } from '@/lib/auth/primaryAdmin';
 import type { StaffRole } from '@/lib/types';
 
 interface AuthContextValue {
@@ -61,6 +62,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
+        try {
+          const token = await firebaseUser.getIdTokenResult();
+          const claimed = token.claims.role;
+          if (claimed === 'admin' || claimed === 'usher') {
+            setRole(claimed);
+            setLoading(false);
+          } else if (isPrimaryAdminEmail(firebaseUser.email)) {
+            setRole('admin');
+            setLoading(false);
+          }
+        } catch {
+          if (isPrimaryAdminEmail(firebaseUser.email)) {
+            setRole('admin');
+            setLoading(false);
+          }
+        }
         const userRole = await getUserRole(firebaseUser);
         setRole(userRole);
       } else {

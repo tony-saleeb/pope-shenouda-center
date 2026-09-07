@@ -15,6 +15,16 @@ export function attendanceQrApprovedMessage(ticketUrl: string): string {
 }
 
 /**
+ * Pre-filled WhatsApp body when the track has no attendance QR.
+ */
+export function registrationApprovedMessage(statusUrl: string): string {
+  return (
+    `تم قبول تسجيلك في دراسة التاريخ الكنسي بنجاح ✓\n\n` +
+    `رابط متابعة التسجيل:\n${statusUrl}`
+  );
+}
+
+/**
  * Pre-filled inquiry from an abroad registrant asking how to pay 50 USD.
  */
 export function abroadPaymentInquiryMessage(): string {

@@ -185,6 +185,10 @@ export function safeImageSrc(url: unknown): string | null {
     return trimmed;
   }
 
+  if (/^blob:https?:\/\//.test(trimmed)) {
+    return trimmed;
+  }
+
   return null;
 }
 

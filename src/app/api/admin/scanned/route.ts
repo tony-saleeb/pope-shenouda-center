@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getAdminReadCache, setAdminReadCache } from '@/lib/adminReadCache';
 import { expandTicketCheckIns } from '@/lib/gateCheckIns';
 import { cairoDateKey, mergeSessionDays } from '@/lib/eventDays';
 import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
@@ -23,6 +24,10 @@ export async function GET(request: NextRequest) {
   }
 
   const correlationId = randomUUID();
+  const cached = getAdminReadCache<{ sessions: unknown; students: unknown }>('scanned');
+  if (cached) {
+    return NextResponse.json(cached);
+  }
 
   try {
     const db = getAdminDb();
@@ -99,10 +104,12 @@ export async function GET(request: NextRequest) {
 
     const extraDays = [...new Set(students.flatMap((student) => Object.keys(student.attended)))];
 
-    return NextResponse.json({
+    const payload = {
       sessions: mergeSessionDays(extraDays),
       students,
-    });
+    };
+    setAdminReadCache('scanned', payload, 8_000);
+    return NextResponse.json(payload);
   } catch (error) {
     console.error(`[Admin attendance list] ${correlationId} failed:`, error);
     return NextResponse.json(
