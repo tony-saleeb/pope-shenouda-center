@@ -4,6 +4,7 @@ import {
   abroadPaymentInquiryMessage,
   attendanceQrApprovedMessage,
   getAbroadPaymentWhatsAppUrl,
+  registrationApprovedMessage,
 } from './templates';
 
 describe('attendanceQrApprovedMessage', () => {
@@ -17,6 +18,19 @@ describe('attendanceQrApprovedMessage', () => {
     expect(message).not.toContain('تذكرة');
     expect(message).not.toContain('chat.whatsapp.com');
     expect(message).not.toContain('جروب');
+  });
+});
+
+describe('registrationApprovedMessage', () => {
+  it('includes the status link and no attendance QR wording', () => {
+    const url = 'https://pope-shenouda-center.vercel.app/status/abc';
+    const message = registrationApprovedMessage(url);
+
+    expect(message).toContain('تم قبول تسجيلك في دراسة التاريخ الكنسي بنجاح');
+    expect(message).toContain('رابط متابعة التسجيل:');
+    expect(message).toContain(url);
+    expect(message).not.toContain('كود الحضور');
+    expect(message).not.toContain('QR');
   });
 });
 

@@ -1,23 +1,39 @@
 import { NextRequest } from 'next/server';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
 import type { StaffRole } from '@/lib/types';
+import { PRIMARY_ADMIN_EMAIL, isPrimaryAdminEmail } from '@/lib/auth/primaryAdmin';
 
-export const PRIMARY_ADMIN_EMAIL = 'tonysaleeb23@gmail.com';
+export { PRIMARY_ADMIN_EMAIL, isPrimaryAdminEmail };
+
+const ADMIN_EMAIL_TTL_MS = 60_000;
+const adminEmailCache = new Map<string, { ok: boolean; expiresAt: number }>();
 
 /**
  * Check if a given email belongs to an authorized admin
  */
 export async function isEmailAdmin(email: string): Promise<boolean> {
   const normalized = email.toLowerCase().trim();
-  if (normalized === PRIMARY_ADMIN_EMAIL.toLowerCase()) return true;
+  if (isPrimaryAdminEmail(normalized)) return true;
+
+  const cached = adminEmailCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.ok;
+  }
+
   try {
     const db = getAdminDb();
     const docSnap = await db.collection('admins').doc(normalized).get();
-    return docSnap.exists;
+    const ok = docSnap.exists;
+    adminEmailCache.set(normalized, { ok, expiresAt: Date.now() + ADMIN_EMAIL_TTL_MS });
+    return ok;
   } catch (err) {
     console.error('Error checking admin email:', err);
     return false;
   }
+}
+
+export function invalidateAdminEmailCache(): void {
+  adminEmailCache.clear();
 }
 
 /**
@@ -61,23 +77,25 @@ export async function requireRole(
     };
   }
 
-  // Extract role from custom claims or email lookup in Firestore admins collection
-  const userEmail = decodedToken.email?.toLowerCase();
-  const isAdminByEmail = userEmail ? await isEmailAdmin(userEmail) : false;
-  const userRole = (decodedToken.role as StaffRole | undefined) || (isAdminByEmail ? 'admin' : undefined);
   const roles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
-
-  if (!userRole || !roles.includes(userRole)) {
-    return {
-      authorized: false,
-      response: new Response(
-        JSON.stringify({ error: 'غير مصرّح — صلاحيات غير كافية', code: 'forbidden' }),
-        { status: 403, headers: { 'Content-Type': 'application/json' } }
-      ),
-    };
+  const claimed = decodedToken.role as StaffRole | undefined;
+  if (claimed && roles.includes(claimed)) {
+    return { authorized: true, uid: decodedToken.uid, role: claimed, email: decodedToken.email };
   }
 
-  return { authorized: true, uid: decodedToken.uid, role: userRole, email: decodedToken.email };
+  const userEmail = decodedToken.email?.toLowerCase();
+  const isAdminByEmail = userEmail && roles.includes('admin') ? await isEmailAdmin(userEmail) : false;
+  if (isAdminByEmail) {
+    return { authorized: true, uid: decodedToken.uid, role: 'admin', email: decodedToken.email };
+  }
+
+  return {
+    authorized: false,
+    response: new Response(
+      JSON.stringify({ error: 'غير مصرّح — صلاحيات غير كافية', code: 'forbidden' }),
+      { status: 403, headers: { 'Content-Type': 'application/json' } }
+    ),
+  };
 }
 
 /** Shorthand: require admin role */

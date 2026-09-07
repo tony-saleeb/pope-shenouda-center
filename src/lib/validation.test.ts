@@ -36,6 +36,11 @@ describe('safeImageSrc', () => {
     expect(safeImageSrc('javascript:void(0)')).toBeNull();
   });
 
+  it('allows same-origin blob object URLs', () => {
+    const blobUrl = 'blob:https://example.com/11111111-2222-3333-4444-555555555555';
+    expect(safeImageSrc(blobUrl)).toBe(blobUrl);
+  });
+
   it('rejects unauthorized external HTTP/HTTPS domains', () => {
     expect(safeImageSrc('https://evil.com/malicious.png')).toBeNull();
     expect(safeImageSrc('http://untrusted-site.org/image.jpg')).toBeNull();

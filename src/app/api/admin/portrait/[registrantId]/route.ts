@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
-import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
-import { getPortraitReadUrl } from '@/lib/firebase/receipts';
+import { getPortraitPayloadForRegistrant } from '@/lib/firebase/receipts';
 import { genericApiError } from '@/lib/http/apiError';
-import { safeImageSrc } from '@/lib/validation';
+import { storedImageResponse } from '@/lib/http/storedImageResponse';
 
 export const runtime = 'nodejs';
 
@@ -25,20 +24,8 @@ export async function GET(
       return NextResponse.json({ error: 'Missing registrantId' }, { status: 400 });
     }
 
-    const snap = await getAdminDb().collection('registrants').doc(registrantId).get();
-    if (!snap.exists) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    }
-
-    const stored = snap.data()?.portraitUrl;
-    const url = await getPortraitReadUrl(typeof stored === 'string' ? stored : null);
-    const safeUrl = safeImageSrc(url);
-
-    if (!safeUrl) {
-      return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ url: safeUrl });
+    const payload = await getPortraitPayloadForRegistrant(registrantId);
+    return storedImageResponse(payload);
   } catch (error) {
     console.error(`[Admin portrait] ${correlationId} failed:`, error);
     return genericApiError(correlationId);

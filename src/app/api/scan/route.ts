@@ -9,6 +9,7 @@ import { getLimiter, limitByIp } from '@/lib/ratelimit';
 import { cairoDateKey } from '@/lib/eventDays';
 import { hasCheckInOnDay } from '@/lib/gateCheckIns';
 import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
+import { invalidateAdminReadCache } from '@/lib/adminReadCache';
 
 /** Max allowed qrToken length — reject unbounded input before it reaches HMAC. */
 const MAX_QR_TOKEN_LENGTH = 512;
@@ -208,6 +209,7 @@ export async function POST(request: NextRequest) {
 
     switch (result.type) {
       case 'success':
+        invalidateAdminReadCache();
         return NextResponse.json({
           type: 'success',
           registrantName: result.registrantName,

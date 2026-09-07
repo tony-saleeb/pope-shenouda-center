@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Query } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import { requireAdmin } from '@/lib/auth/guards';
+import { getAdminReadCache, setAdminReadCache } from '@/lib/adminReadCache';
 import { genericApiError } from '@/lib/http/apiError';
 
 export const runtime = 'nodejs';
@@ -19,6 +20,17 @@ export async function GET(request: NextRequest) {
   }
 
   const correlationId = randomUUID();
+  const cached = getAdminReadCache<{
+    total: number;
+    pending: number;
+    review: number;
+    approved: number;
+    rejected: number;
+    checkedIn: number;
+  }>('stats');
+  if (cached) {
+    return NextResponse.json(cached);
+  }
 
   try {
     const db = getAdminDb();
@@ -35,14 +47,16 @@ export async function GET(request: NextRequest) {
       countQuery(tickets.where('used', '==', true)),
     ]);
 
-    return NextResponse.json({
+    const payload = {
       total,
       pending,
       review,
       approved: approved + autoApproved,
       rejected,
       checkedIn,
-    });
+    };
+    setAdminReadCache('stats', payload, 15_000);
+    return NextResponse.json(payload);
   } catch (error) {
     console.error(`[Admin stats] ${correlationId} failed:`, error);
     return genericApiError(correlationId);

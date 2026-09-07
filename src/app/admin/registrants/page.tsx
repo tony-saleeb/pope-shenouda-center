@@ -1,13 +1,13 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth/context';
 import type { RegistrantStatus } from '@/lib/types';
 import { ImageLightboxModal } from '@/components/ui/ImageLightboxModal';
-import { getWhatsAppTicketUrl } from '@/lib/services/whatsappService';
-import { matchesAdminSearch, safeImageSrc } from '@/lib/validation';
-import { formatTrackTitle, getTrack, trackRequiresAttendanceQr } from '@/lib/registrationTracks';
-import { formatEgyptianPhone } from '@/lib/utils/formatters';
+import { getWhatsAppRegistrantUrl } from '@/lib/services/whatsappService';
+import { matchesAdminSearch } from '@/lib/validation';
+import { formatTrackTitle, getTrack } from '@/lib/registrationTracks';
+import { forgetAdminStoredImage, loadAdminStoredImage } from '@/lib/adminStoredImage';
 import Papa from 'papaparse';
 
 interface RegistrantItem {
@@ -29,21 +29,18 @@ interface RegistrantItem {
   createdAt: string | null;
 }
 
-const STATUS_LABELS: Record<RegistrantStatus, { label: string; className: string }> = {
-  pending_verification: { label: 'قيد التحقق', className: 'badge-pending' },
-  auto_approved: { label: 'موافقة تلقائية', className: 'badge-approved' },
-  manual_review: { label: 'تحتاج مراجعة', className: 'badge-review' },
-  approved: { label: 'موافق عليه', className: 'badge-approved' },
-  rejected: { label: 'مرفوض', className: 'badge-rejected' },
+const STATUS_LABELS: Record<RegistrantStatus, { label: string; className: string; tone: 'ok' | 'pending' | 'review' | 'no' }> = {
+  pending_verification: { label: 'قيد التحقق', className: 'badge-pending', tone: 'pending' },
+  auto_approved: { label: 'موافقة تلقائية', className: 'badge-approved', tone: 'ok' },
+  manual_review: { label: 'تحتاج مراجعة', className: 'badge-review', tone: 'review' },
+  approved: { label: 'موافق عليه', className: 'badge-approved', tone: 'ok' },
+  rejected: { label: 'مرفوض', className: 'badge-rejected', tone: 'no' },
 };
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: 'الكل' },
   { value: 'pending_verification', label: 'قيد التحقق' },
-  { value: 'manual_review', label: 'تحتاج مراجعة' },
-  { value: 'auto_approved', label: 'موافقة تلقائية' },
   { value: 'approved', label: 'موافق عليه' },
-  { value: 'rejected', label: 'مرفوض' },
 ];
 
 const AVATAR_TONES = [
@@ -74,6 +71,22 @@ function displayValue(value: string | null | undefined): string {
   return text ? text : '—';
 }
 
+function CopyIcon({ copied }: { copied: boolean }) {
+  if (copied) {
+    return (
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12" />
+      </svg>
+    );
+  }
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect width="13" height="13" x="9" y="9" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
 function Field({
   label,
   value,
@@ -95,8 +108,8 @@ function Field({
   return (
     <div className="admin-field">
       <dt>{label}</dt>
-      <dd dir={ltr ? 'ltr' : undefined}>
-        <span className="admin-field-value">
+      <dd>
+        <span className={`admin-field-value${ltr ? ' is-ltr' : ''}`} dir={ltr ? 'ltr' : undefined}>
           {href && hasValue ? (
             <a
               href={href}
@@ -110,8 +123,14 @@ function Field({
           )}
         </span>
         {onCopy && hasValue ? (
-          <button type="button" className="admin-field-copy" onClick={onCopy}>
-            {copied ? 'تم النسخ' : 'نسخ'}
+          <button
+            type="button"
+            className={`admin-field-copy${copied ? ' is-done' : ''}`}
+            onClick={onCopy}
+            aria-label={copied ? 'تم النسخ' : 'نسخ'}
+            title={copied ? 'تم النسخ' : 'نسخ'}
+          >
+            <CopyIcon copied={copied} />
           </button>
         ) : null}
       </dd>
@@ -134,6 +153,18 @@ export default function RegistrantsPage() {
   const [sheetPortrait, setSheetPortrait] = useState<string | null>(null);
   const [sheetReceipt, setSheetReceipt] = useState<string | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef({
+    pointerId: -1,
+    startY: 0,
+    lastY: 0,
+    lastT: 0,
+    dy: 0,
+    vy: 0,
+    dragging: false,
+  });
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -177,7 +208,7 @@ export default function RegistrantsPage() {
     if (!user) return;
     setDeleteLoading(registrantId);
     try {
-      const token = await user.getIdToken(true);
+      const token = await user.getIdToken();
       const response = await fetch('/api/admin/delete', {
         method: 'POST',
         headers: {
@@ -188,6 +219,8 @@ export default function RegistrantsPage() {
       });
 
       if (response.ok) {
+        forgetAdminStoredImage('portrait', registrantId);
+        forgetAdminStoredImage('receipt', registrantId);
         setItems((prev) => prev.filter((item) => item.id !== registrantId));
         setConfirmDelete(null);
         setSelectedId(null);
@@ -205,7 +238,7 @@ export default function RegistrantsPage() {
 
   const getWhatsAppUrl = (item: RegistrantItem) => {
     const phone = item.whatsappNumber || item.phoneNumber || '';
-    return getWhatsAppTicketUrl(item.id, phone);
+    return getWhatsAppRegistrantUrl(item.id, phone, item.track);
   };
 
   const openStoredImage = async (item: RegistrantItem, kind: 'receipt' | 'portrait') => {
@@ -214,16 +247,8 @@ export default function RegistrantsPage() {
     const failed =
       kind === 'portrait' ? 'تعذّر عرض الصورة الشخصية' : 'تعذّر عرض صورة الإيصال';
     try {
-      const token = await user.getIdToken();
-      const response = await fetch(
-        kind === 'portrait' ? `/api/admin/portrait/${item.id}` : `/api/admin/receipt/${item.id}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      const payload = (await response.json()) as { url?: string };
-      const src = payload.url ? safeImageSrc(payload.url) : null;
-      if (!response.ok || !src) {
+      const src = await loadAdminStoredImage(() => user.getIdToken(), kind, item.id);
+      if (!src) {
         alert(failed);
         return;
       }
@@ -262,20 +287,112 @@ export default function RegistrantsPage() {
 
   const selected = filteredItems.find((item) => item.id === selectedId) ?? null;
   const selectedWhatsAppHref = selected
-    ? (selected.status === 'approved' || selected.status === 'auto_approved') &&
-      trackRequiresAttendanceQr(selected.track)
-      ? getWhatsAppUrl(selected)
-      : `https://wa.me/${formatEgyptianPhone(selected.whatsappNumber || selected.phoneNumber)}`
+    ? getWhatsAppUrl(selected)
     : '';
+  const selectedTrack = selected ? getTrack(selected.track) : null;
   const selectedSubtitle = selected
-    ? [selected.church, selected.currentService].filter((part) => part?.trim()).join(' · ')
+    ? [
+        selected.church,
+        selected.currentService,
+        selectedTrack?.tagAr ?? selectedTrack?.titleAr ?? '',
+      ]
+        .filter((part) => part.trim())
+        .join(' · ')
     : '';
+
+  const closeSheet = useCallback((animate = false) => {
+    if (closeTimerRef.current != null) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+    if (!animate) {
+      setSelectedId(null);
+      return;
+    }
+    const sheet = sheetRef.current;
+    if (sheet) {
+      sheet.style.transition = 'transform 0.22s ease-in';
+      sheet.style.transform = `translateY(${Math.max(window.innerHeight * 0.75, 480)}px)`;
+    }
+    const backdrop = backdropRef.current;
+    if (backdrop) {
+      backdrop.style.transition = 'opacity 0.22s ease-in';
+      backdrop.style.opacity = '0';
+    }
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      setSelectedId(null);
+    }, 220);
+  }, []);
+
+  const onGrabPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if (closeTimerRef.current != null) return;
+    const sheet = sheetRef.current;
+    if (sheet) sheet.style.animation = 'none';
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      lastY: event.clientY,
+      lastT: performance.now(),
+      dy: 0,
+      vy: 0,
+      dragging: true,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const onGrabPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.dragging || event.pointerId !== dragRef.current.pointerId) return;
+    const now = performance.now();
+    const dy = Math.max(0, event.clientY - dragRef.current.startY);
+    const dt = Math.max(1, now - dragRef.current.lastT);
+    dragRef.current.vy = (event.clientY - dragRef.current.lastY) / dt;
+    dragRef.current.lastY = event.clientY;
+    dragRef.current.lastT = now;
+    dragRef.current.dy = dy;
+    const sheet = sheetRef.current;
+    if (sheet) {
+      sheet.style.transition = 'none';
+      sheet.style.transform = `translateY(${dy}px)`;
+    }
+    const backdrop = backdropRef.current;
+    if (backdrop) {
+      backdrop.style.transition = 'none';
+      backdrop.style.opacity = String(Math.max(0.16, 1 - dy / 420));
+    }
+  };
+
+  const onGrabPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current.dragging || event.pointerId !== dragRef.current.pointerId) return;
+    dragRef.current.dragging = false;
+    try {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    } catch {
+      // already released
+    }
+    const { dy, vy } = dragRef.current;
+    if (dy > 96 || (dy > 36 && vy > 0.55)) {
+      closeSheet(true);
+      return;
+    }
+    const sheet = sheetRef.current;
+    if (sheet) {
+      sheet.style.transition = 'transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)';
+      sheet.style.transform = 'translateY(0)';
+    }
+    const backdrop = backdropRef.current;
+    if (backdrop) {
+      backdrop.style.transition = 'opacity 0.28s ease';
+      backdrop.style.opacity = '1';
+    }
+  };
 
   useEffect(() => {
     setCopiedKey(null);
+    setSheetReceipt(null);
     if (!selectedId || !user) {
       setSheetPortrait(null);
-      setSheetReceipt(null);
       return;
     }
     let cancelled = false;
@@ -283,22 +400,15 @@ export default function RegistrantsPage() {
     const id = selectedId;
     void (async () => {
       try {
-        const token = await currentUser.getIdToken();
-        const headers = { Authorization: `Bearer ${token}` };
-        const [portraitRes, receiptRes] = await Promise.all([
-          fetch(`/api/admin/portrait/${id}`, { headers }),
-          fetch(`/api/admin/receipt/${id}`, { headers }),
-        ]);
-        const portraitPayload = (await portraitRes.json()) as { url?: string };
-        const receiptPayload = (await receiptRes.json()) as { url?: string };
+        const src = await loadAdminStoredImage(
+          () => currentUser.getIdToken(),
+          'portrait',
+          id
+        );
         if (cancelled) return;
-        setSheetPortrait(portraitRes.ok ? safeImageSrc(portraitPayload.url) : null);
-        setSheetReceipt(receiptRes.ok ? safeImageSrc(receiptPayload.url) : null);
+        setSheetPortrait(src);
       } catch {
-        if (!cancelled) {
-          setSheetPortrait(null);
-          setSheetReceipt(null);
-        }
+        if (!cancelled) setSheetPortrait(null);
       }
     })();
     return () => {
@@ -311,14 +421,18 @@ export default function RegistrantsPage() {
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setSelectedId(null);
+      if (event.key === 'Escape') closeSheet();
     };
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = previous;
       window.removeEventListener('keydown', onKey);
+      if (closeTimerRef.current != null) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
     };
-  }, [selected]);
+  }, [selected, closeSheet]);
 
   const handleExportCSV = () => {
     const csvData = filteredItems.map((item) => ({
@@ -513,22 +627,30 @@ export default function RegistrantsPage() {
       )}
 
       {selected && (
-        <div className="admin-sheet-backdrop" onClick={() => setSelectedId(null)}>
+        <div
+          ref={backdropRef}
+          className="admin-sheet-backdrop"
+          onClick={() => closeSheet()}
+        >
           <div
+            ref={sheetRef}
             className="admin-sheet"
             role="dialog"
             aria-modal="true"
             aria-labelledby="registrant-sheet-title"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="admin-sheet-handle" aria-hidden />
+            <div
+              className="admin-sheet-grab"
+              onPointerDown={onGrabPointerDown}
+              onPointerMove={onGrabPointerMove}
+              onPointerUp={onGrabPointerUp}
+              onPointerCancel={onGrabPointerUp}
+              aria-label="اسحب للأسفل للإغلاق"
+            >
+              <div className="admin-sheet-handle" />
+            </div>
             <header className="admin-sheet-hero">
-              <button type="button" className="admin-sheet-close" onClick={() => setSelectedId(null)} aria-label="إغلاق">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
               <button
                 type="button"
                 className="admin-sheet-photo"
@@ -548,68 +670,55 @@ export default function RegistrantsPage() {
                   initials(selected.fullName)
                 )}
               </button>
-              <h2 id="registrant-sheet-title" dir="auto">{selected.fullName}</h2>
-              {selectedSubtitle ? <p className="admin-sheet-sub">{selectedSubtitle}</p> : null}
-              <div className="admin-sheet-pills">
-                <span className={`badge ${STATUS_LABELS[selected.status]?.className ?? 'badge-pending'}`}>
-                  {STATUS_LABELS[selected.status]?.label ?? selected.status}
-                </span>
-                {getTrack(selected.track) && (
-                  <span className="badge badge-review">{getTrack(selected.track)!.tagAr ?? getTrack(selected.track)!.titleAr}</span>
-                )}
+              <div className="admin-sheet-id">
+                <div className="admin-sheet-id-top">
+                  <h2 id="registrant-sheet-title">{selected.fullName}</h2>
+                  <span className={`admin-sheet-status is-${STATUS_LABELS[selected.status]?.tone ?? 'pending'}`}>
+                    {STATUS_LABELS[selected.status]?.label ?? selected.status}
+                  </span>
+                </div>
+                {selectedSubtitle ? <p className="admin-sheet-sub">{selectedSubtitle}</p> : null}
               </div>
-              {(selected.whatsappNumber || selected.phoneNumber || selected.email) ? (
-              <div className="admin-sheet-quick">
-                {selected.whatsappNumber || selected.phoneNumber ? (
-                  <a className="admin-quick is-wa" href={selectedWhatsAppHref} target="_blank" rel="noopener noreferrer">
-                    <span className="admin-quick-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M17.47 14.38c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.48-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.05 1.02-1.05 2.5s1.07 2.9 1.22 3.1c.15.2 2.1 3.2 5.08 4.48.71.3 1.26.48 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.77-.72 2.02-1.42.25-.7.25-1.3.17-1.42-.07-.12-.27-.2-.57-.35z" />
-                        <path d="M12.04 2C6.5 2 2.03 6.48 2.03 12.02c0 1.77.46 3.5 1.34 5.02L2 22l5.1-1.34A10 10 0 0 0 12.04 22C17.57 22 22 17.52 22 12.02 22 6.48 17.57 2 12.04 2zm0 18.15c-1.64 0-3.25-.44-4.65-1.28l-.33-.2-3.03.8.81-2.95-.22-.35A8.13 8.13 0 0 1 3.87 12C3.87 7.5 7.54 3.84 12.04 3.84S20.16 7.5 20.16 12c0 4.5-3.67 8.15-8.12 8.15z" />
-                      </svg>
-                    </span>
-                    واتساب
-                  </a>
-                ) : null}
-                {selected.email ? (
-                  <a className="admin-quick is-mail" href={`mailto:${selected.email}`}>
-                    <span className="admin-quick-icon">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect width="20" height="16" x="2" y="4" rx="2" />
-                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                      </svg>
-                    </span>
-                    بريد
-                  </a>
-                ) : null}
-              </div>
-              ) : null}
             </header>
 
             <div className="admin-sheet-body">
               <section className="admin-group-wrap">
                 <h3>التسجيل</h3>
-                <dl className="admin-group">
-                  <Field label="النوع" value={getTrack(selected.track) ? formatTrackTitle(getTrack(selected.track)!) : ''} />
-                  <Field
-                    label="المدفوع"
-                    value={
-                      selected.feeAmount != null
-                        ? selected.feeCurrency === 'USD'
-                          ? `${selected.feeAmount}$ USD`
-                          : `${selected.feeAmount.toLocaleString('ar-EG')} جنيه`
-                        : ''
-                    }
-                  />
-                  <Field
-                    label="التاريخ"
-                    value={
-                      selected.createdAt
-                        ? new Date(selected.createdAt).toLocaleDateString('ar-EG')
-                        : ''
-                    }
-                  />
-                </dl>
+                <div className="admin-ticket">
+                  <div className="admin-ticket-head">
+                    <span className="admin-ticket-mark" aria-hidden>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M15 5H5a2 2 0 0 0-2 2v4a2 2 0 0 1 0 4v4a2 2 0 0 0 2 2h10" />
+                        <path d="M21 8v8" />
+                        <path d="M18 5v14" />
+                      </svg>
+                    </span>
+                    <div className="admin-ticket-head-text">
+                      <strong>{selectedTrack ? formatTrackTitle(selectedTrack) : '—'}</strong>
+                      {selectedTrack?.tagAr ? <span>{selectedTrack.tagAr}</span> : null}
+                    </div>
+                  </div>
+                  <div className="admin-ticket-stats">
+                    <div className="admin-ticket-stat">
+                      <span>المدفوع</span>
+                      <strong>
+                        {selected.feeAmount != null
+                          ? selected.feeCurrency === 'USD'
+                            ? `${selected.feeAmount}$ USD`
+                            : `${selected.feeAmount.toLocaleString('ar-EG')} جنيه`
+                          : '—'}
+                      </strong>
+                    </div>
+                    <div className="admin-ticket-stat">
+                      <span>التاريخ</span>
+                      <strong>
+                        {selected.createdAt
+                          ? new Date(selected.createdAt).toLocaleDateString('ar-EG')
+                          : '—'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
               </section>
 
               <section className="admin-group-wrap">
@@ -655,13 +764,36 @@ export default function RegistrantsPage() {
 
               <section className="admin-group-wrap">
                 <h3>الكنيسة والخدمة</h3>
-                <dl className="admin-group">
-                  <Field label="الكنيسة" value={selected.church} />
-                  <Field label="الإيبارشية" value={selected.eparchy} />
-                  <Field label="الخدمة الحالية" value={selected.currentService} />
-                  <Field label="أب الاعتراف" value={selected.confessionFather} />
-                  <Field label="كنيسة أب الاعتراف" value={selected.confessionFatherChurch} />
-                </dl>
+                <div className="admin-place">
+                  <div className="admin-place-head">
+                    <span className="admin-place-mark" aria-hidden>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2v4" />
+                        <path d="M10 4h4" />
+                        <path d="M4 21V11l8-6 8 6v10" />
+                        <path d="M9 21v-5h6v5" />
+                      </svg>
+                    </span>
+                    <div className="admin-place-head-text">
+                      <strong>{displayValue(selected.church)}</strong>
+                      <span>{displayValue(selected.eparchy)}</span>
+                    </div>
+                  </div>
+                  <div className="admin-place-rows">
+                    <div className="admin-place-row">
+                      <span className="admin-place-k">الخدمة الحالية</span>
+                      <span className="admin-place-v">{displayValue(selected.currentService)}</span>
+                    </div>
+                    <div className="admin-place-row">
+                      <span className="admin-place-k">أب الاعتراف</span>
+                      <span className="admin-place-v">{displayValue(selected.confessionFather)}</span>
+                    </div>
+                    <div className="admin-place-row">
+                      <span className="admin-place-k">كنيسة أب الاعتراف</span>
+                      <span className="admin-place-v">{displayValue(selected.confessionFatherChurch)}</span>
+                    </div>
+                  </div>
+                </div>
               </section>
 
               <section className="admin-group-wrap">
