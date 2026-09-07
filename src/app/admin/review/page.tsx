@@ -13,6 +13,82 @@ interface ReviewItem {
   data: Registrant;
 }
 
+function ReviewThumb({
+  url,
+  name,
+  title,
+  alt,
+  onOpen,
+}: {
+  url: string;
+  name: string;
+  title: string;
+  alt: string;
+  onOpen: (url: string, name: string) => void;
+}) {
+  const validScreenshot = safeImageSrc(url);
+  if (!validScreenshot) {
+    return (
+      <div style={{
+        width: '6rem',
+        height: '6rem',
+        borderRadius: '0.75rem',
+        background: 'rgba(239, 68, 68, 0.1)',
+        border: '1px solid rgba(239, 68, 68, 0.3)',
+        color: '#ef4444',
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        padding: '0.25rem',
+      }}>
+        صورة غير صالحة
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onClick={() => onOpen(validScreenshot, name)}
+      style={{
+        width: '6rem',
+        height: '6rem',
+        borderRadius: '0.75rem',
+        overflow: 'hidden',
+        flexShrink: 0,
+        border: '1.5px solid rgba(242, 158, 19, 0.3)',
+        boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+        cursor: 'pointer',
+        position: 'relative',
+      }}
+      title={title}
+    >
+      <img
+        src={validScreenshot}
+        alt={alt}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+      <div style={{
+        position: 'absolute',
+        inset: 0,
+        background: 'rgba(0,0,0,0.25)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          <line x1="11" y1="8" x2="11" y2="14" />
+          <line x1="8" y1="11" x2="14" y2="11" />
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 export default function ReviewPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<'pending' | 'approved'>('pending');
@@ -132,48 +208,31 @@ export default function ReviewPage() {
 
   return (
     <div>
-      {/* Page Title Bar */}
-      <div style={{
-        marginBottom: '2rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        borderBottom: '1px solid rgba(242, 158, 19, 0.12)',
-        paddingBottom: '1.25rem',
-      }}>
+      <div className="admin-page-head">
         <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.25rem' }}>
-            مراجعة الطلبات وإرسال التذاكر
-          </h1>
-          <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
-            مراجعة إيصالات الدفع، إقرار الموافقة، وإرسال التذاكر عبر واتساب في أي وقت
-          </p>
+          <h1>مراجعة الطلبات</h1>
+          <p>راجع الإيصال والصورة ثم وافق أو ارفض — كود الحضور للانتظامي عبر واتساب</p>
         </div>
-
-        <div>
-          <button
-            className="btn btn-ghost"
-            onClick={() => { setLoading(true); void fetchItems(); }}
-            style={{
-              padding: '0.625rem 1.25rem',
-              fontSize: '0.875rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: 'rgba(19, 12, 5, 0.6)',
-              border: '1px solid rgba(242, 158, 19, 0.2)',
-              color: '#f7f0e4',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="23 4 23 10 17 10" />
-              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
-            </svg>
-            <span>تحديث القائمة</span>
-          </button>
-        </div>
+        <button
+          className="btn btn-ghost"
+          onClick={() => { setLoading(true); void fetchItems(); }}
+          style={{
+            padding: '0.625rem 1.1rem',
+            fontSize: '0.875rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            background: 'rgba(19, 12, 5, 0.6)',
+            border: '1px solid rgba(242, 158, 19, 0.2)',
+            color: '#f7f0e4',
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="23 4 23 10 17 10" />
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+          </svg>
+          <span>تحديث</span>
+        </button>
       </div>
 
       {notification && (
@@ -195,16 +254,7 @@ export default function ReviewPage() {
       )}
 
       {/* Navigation Tabs */}
-      <div style={{
-        display: 'flex',
-        gap: '0.5rem',
-        marginBottom: '2rem',
-        background: 'rgba(19, 12, 5, 0.6)',
-        padding: '0.375rem',
-        borderRadius: '0.75rem',
-        border: '1px solid rgba(242, 158, 19, 0.2)',
-        maxWidth: '30rem',
-      }}>
+      <div className="admin-tabs">
         <button
           onClick={() => setActiveTab('pending')}
           style={{
@@ -300,14 +350,14 @@ export default function ReviewPage() {
             return (
               <div
                 key={item.id}
-                className="glass-card"
+                className="glass-card admin-review-card"
                 style={{
                   padding: '1.75rem',
                   border: `1px solid ${isApproved ? 'rgba(16, 185, 129, 0.3)' : 'rgba(242, 158, 19, 0.2)'}`,
                   background: isApproved ? 'rgba(16, 185, 129, 0.04)' : 'rgba(31, 19, 6, 0.65)',
                 }}
               >
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '1.5rem', alignItems: 'start' }}>
+                <div className="admin-review-top">
                   {/* Registrant Data */}
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
@@ -355,68 +405,50 @@ export default function ReviewPage() {
                       </div>
                     </div>
 
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))',
+                      gap: '0.5rem 1rem',
+                      marginTop: '0.875rem',
+                      fontSize: '0.8125rem',
+                      color: 'rgba(247, 240, 228, 0.7)',
+                    }}>
+                      {item.data.nationalId && (
+                        <div>الرقم القومي: <span dir="ltr">{item.data.nationalId}</span></div>
+                      )}
+                      {item.data.email && (
+                        <div>البريد: <span dir="ltr">{item.data.email}</span></div>
+                      )}
+                      {item.data.eparchy && <div>الإيبارشية: {item.data.eparchy}</div>}
+                      {item.data.confessionFather && <div>أب الاعتراف: {item.data.confessionFather}</div>}
+                      {item.data.confessionFatherChurch && (
+                        <div>كنيسة أب الاعتراف: {item.data.confessionFatherChurch}</div>
+                      )}
+                      {item.data.currentService && <div>الخدمة الحالية: {item.data.currentService}</div>}
+                    </div>
+
                   </div>
 
-                  {/* Screenshot Preview */}
-                  {item.data.paymentScreenshotUrl && (() => {
-                    const validScreenshot = safeImageSrc(item.data.paymentScreenshotUrl);
-                    return validScreenshot ? (
-                      <div
-                        onClick={() => setSelectedImageModal({ url: validScreenshot, name: item.data.fullName })}
-                        style={{
-                          width: '6rem',
-                          height: '6rem',
-                          borderRadius: '0.75rem',
-                          overflow: 'hidden',
-                          flexShrink: 0,
-                          border: '1.5px solid rgba(242, 158, 19, 0.3)',
-                          boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
-                          cursor: 'pointer',
-                          position: 'relative',
-                        }}
+                  <div className="admin-review-thumbs" style={{ display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
+                    {item.data.portraitUrl ? (
+                      <ReviewThumb
+                        url={item.data.portraitUrl}
+                        name={item.data.fullName}
+                        title="اضغط لمشاهدة الصورة الشخصية"
+                        alt="الصورة الشخصية"
+                        onOpen={(url, name) => setSelectedImageModal({ url, name })}
+                      />
+                    ) : null}
+                    {item.data.paymentScreenshotUrl ? (
+                      <ReviewThumb
+                        url={item.data.paymentScreenshotUrl}
+                        name={item.data.fullName}
                         title="اضغط لمشاهدة الإيصال بوضوح"
-                      >
-                        <img
-                          src={validScreenshot}
-                          alt="إيصال الدفع"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                        <div style={{
-                          position: 'absolute',
-                          inset: 0,
-                          background: 'rgba(0,0,0,0.25)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}>
-                          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="11" cy="11" r="8" />
-                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                            <line x1="11" y1="8" x2="11" y2="14" />
-                            <line x1="8" y1="11" x2="14" y2="11" />
-                          </svg>
-                        </div>
-                      </div>
-                    ) : (
-                      <div style={{
-                        width: '6rem',
-                        height: '6rem',
-                        borderRadius: '0.75rem',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        color: '#ef4444',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        textAlign: 'center',
-                        padding: '0.25rem',
-                      }}>
-                        صورة غير صالحة
-                      </div>
-                    );
-                  })()}
+                        alt="إيصال الدفع"
+                        onOpen={(url, name) => setSelectedImageModal({ url, name })}
+                      />
+                    ) : null}
+                  </div>
                 </div>
 
                 {/* Action Buttons or WhatsApp share for onsite (انتظامي) track */}
@@ -463,7 +495,7 @@ export default function ReviewPage() {
                   </div>
                 ) : (
                   /* Pending — show approve/reject */
-                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
                     <button
                       className="btn btn-success"
                       onClick={() => handleAction(item.id, 'approve')}

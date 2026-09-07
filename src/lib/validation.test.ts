@@ -2,9 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   safeImageSrc,
   isValidEgyptianPhone,
+  isValidEgyptianNationalId,
+  isValidEmail,
   isValidInternationalPhone,
+  isValidShortText,
   normalizePhone,
   resolveLookupPhoneId,
+  sanitizeNationalIdInput,
   sanitizePhoneInput,
   toPhoneIndexId,
   isValidName,
@@ -87,6 +91,37 @@ describe('isValidName', () => {
     expect(isValidName('مينا مجدي')).toBe(false);
     expect(isValidName('أ ب ج')).toBe(false);
     expect(isValidName('')).toBe(false);
+  });
+});
+
+describe('isValidEgyptianNationalId', () => {
+  it('accepts a 14-digit ID with century 2 or 3 and a real birth date', () => {
+    expect(isValidEgyptianNationalId('29501011234567')).toBe(true);
+    expect(isValidEgyptianNationalId('30501011234567')).toBe(true);
+    expect(isValidEgyptianNationalId('٢٩٥٠١٠١١٢٣٤٥٦٧')).toBe(true);
+    expect(sanitizeNationalIdInput('29501011234567extra')).toBe('29501011234567');
+  });
+
+  it('rejects wrong length, century, or impossible dates', () => {
+    expect(isValidEgyptianNationalId('19501011234567')).toBe(false);
+    expect(isValidEgyptianNationalId('29513011234567')).toBe(false);
+    expect(isValidEgyptianNationalId('29702291234567')).toBe(false);
+    expect(isValidEgyptianNationalId('2950101')).toBe(false);
+  });
+});
+
+describe('isValidEmail & isValidShortText', () => {
+  it('accepts a normal email and rejects empty or malformed values', () => {
+    expect(isValidEmail('name@example.com')).toBe(true);
+    expect(isValidEmail('  name@example.com  ')).toBe(true);
+    expect(isValidEmail('not-an-email')).toBe(false);
+    expect(isValidEmail('')).toBe(false);
+  });
+
+  it('requires a trimmed church-style text field of 2–120 characters', () => {
+    expect(isValidShortText('إيبارشية شبرا')).toBe(true);
+    expect(isValidShortText('أ')).toBe(false);
+    expect(isValidShortText('   ')).toBe(false);
   });
 });
 

@@ -225,16 +225,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div style={{ position: 'relative', zIndex: 1, minHeight: '100dvh' }}>
       {/* Top Header Bar */}
-      <nav style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 40,
+      <nav className="admin-topbar" style={{
         background: 'rgba(19, 12, 5, 0.92)',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
         borderBottom: '1px solid rgba(242, 158, 19, 0.2)',
         boxShadow: '0 4px 25px rgba(0, 0, 0, 0.5)',
-        padding: '0 0.875rem',
       }}>
         <div style={{
           maxWidth: '82rem',
@@ -263,7 +259,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <path d="M2 12l10 5 10-5" />
               </svg>
             </div>
-            <span style={{ fontSize: '1rem', fontWeight: 800, color: '#f7f0e4', whiteSpace: 'nowrap' }}>
+            <span className="admin-brand-text" style={{ fontSize: '1rem', fontWeight: 800, color: '#f7f0e4', whiteSpace: 'nowrap' }}>
               لوحة التحكم
             </span>
           </Link>
@@ -375,7 +371,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </nav>
 
       {/* Main Content Area */}
-      <main className="admin-container page-enter" style={{ paddingTop: '1.5rem', paddingBottom: '5.5rem' }}>
+      <main className="admin-container page-enter" style={{ paddingTop: '1.25rem' }}>
         {children}
       </main>
 

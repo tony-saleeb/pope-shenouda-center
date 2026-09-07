@@ -109,34 +109,16 @@ export default function AdminsPage() {
 
   return (
     <div>
-      {/* Title Bar */}
-      <div style={{
-        marginBottom: '2.5rem',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '1rem',
-        borderBottom: '1px solid rgba(242, 158, 19, 0.12)',
-        paddingBottom: '1.25rem',
-      }}>
+      <div className="admin-page-head">
         <div>
-          <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <span>إدارة مسؤولين النظام (الأدمن)</span>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-            </svg>
-          </h1>
-          <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
-            إضافة وإلغاء صلاحيات حسابات المسؤولين المسموح لهم بإدارة الدراسة والطلبات
-          </p>
+          <h1>إدارة المسؤولين</h1>
+          <p>إضافة وإلغاء صلاحيات حسابات الأدمن</p>
         </div>
-
         <button
           className="btn btn-primary"
           onClick={() => { setShowAddModal(true); setError(null); setSuccess(null); }}
           style={{
-            padding: '0.625rem 1.25rem',
+            padding: '0.625rem 1.1rem',
             fontSize: '0.9375rem',
             fontWeight: 700,
             display: 'inline-flex',
@@ -148,7 +130,7 @@ export default function AdminsPage() {
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          <span>إضافة أدمن جديد</span>
+          <span>إضافة أدمن</span>
         </button>
       </div>
 
@@ -359,101 +341,51 @@ export default function AdminsPage() {
           <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.9375rem' }}>جاري تحميل قائمة الأدمن...</p>
         </div>
       ) : (
-        <div className="glass-card" style={{ overflow: 'hidden', padding: 0, border: '1px solid rgba(242, 158, 19, 0.2)' }}>
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: 'rgba(12, 7, 3, 0.7)', borderBottom: '1px solid rgba(242, 158, 19, 0.18)' }}>
-                  <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>البريد الإلكتروني</th>
-                  <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>نوع الحساب</th>
-                  <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'right', fontWeight: 700 }}>حالة التسجيل</th>
-                  <th style={{ color: '#fbba33', padding: '1rem 1.25rem', textAlign: 'center', fontWeight: 700 }}>إجراءات</th>
-                </tr>
-              </thead>
-              <tbody>
-                {admins.map((adm) => (
-                  <tr
-                    key={adm.email}
+        <div className="admin-record-list">
+          {admins.map((adm) => (
+            <div key={adm.email} className="admin-person-card">
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 0 }}>
+                  <p dir="ltr" style={{ margin: 0, fontWeight: 800, color: '#f7f0e4', overflowWrap: 'anywhere' }}>
+                    {adm.email}
+                  </p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
+                    {adm.isPrimary ? (
+                      <span className="badge badge-approved" style={{ background: 'rgba(242, 158, 19, 0.2)', color: '#fbba33', border: '1px solid rgba(242, 158, 19, 0.4)' }}>
+                        أدمن رئيسي
+                      </span>
+                    ) : (
+                      <span className="badge badge-approved">أدمن معتمد</span>
+                    )}
+                    {adm.hasAuthAccount ? (
+                      <span className="badge badge-approved">مفعل</span>
+                    ) : (
+                      <span className="badge badge-review">بانتظار كلمة السر</span>
+                    )}
+                  </div>
+                </div>
+                {!adm.isPrimary ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(adm.email)}
                     style={{
-                      borderBottom: '1px solid rgba(242, 158, 19, 0.08)',
-                      transition: 'background 0.2s ease',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem 0.75rem',
+                      color: '#ef4444',
+                      fontWeight: 600,
+                      fontSize: '0.8125rem',
                     }}
                   >
-                    <td style={{ fontWeight: 700, color: '#f7f0e4', padding: '1rem 1.25rem', fontFamily: 'monospace' }}>
-                      {adm.email}
-                    </td>
-
-                    <td style={{ padding: '1rem 1.25rem' }}>
-                      {adm.isPrimary ? (
-                        <span className="badge badge-approved" style={{ background: 'rgba(242, 158, 19, 0.2)', color: '#fbba33', border: '1px solid rgba(242, 158, 19, 0.4)', gap: '0.375rem' }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                          </svg>
-                          <span>أدمن رئيسي</span>
-                        </span>
-                      ) : (
-                        <span className="badge badge-approved" style={{ gap: '0.375rem' }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                          <span>أدمن معتمد</span>
-                        </span>
-                      )}
-                    </td>
-
-                    <td style={{ padding: '1rem 1.25rem' }}>
-                      {adm.hasAuthAccount ? (
-                        <span style={{ color: '#10b981', fontSize: '0.875rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                          <span>مفعل في النظام</span>
-                        </span>
-                      ) : (
-                        <span style={{ color: '#fbba33', fontSize: '0.875rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                          </svg>
-                          <span>بانتظار إنشاء كلمة السر</span>
-                        </span>
-                      )}
-                    </td>
-
-                    <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                      {!adm.isPrimary ? (
-                        <button
-                          onClick={() => setConfirmDelete(adm.email)}
-                          title="سحب صلاحية الأدمن"
-                          style={{
-                            background: 'rgba(239, 68, 68, 0.12)',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            borderRadius: '0.5rem',
-                            padding: '0.5rem 0.875rem',
-                            cursor: 'pointer',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.375rem',
-                            fontSize: '0.8125rem',
-                            color: '#ef4444',
-                            fontWeight: 600,
-                          }}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                          <span>سحب الصلاحية</span>
-                        </button>
-                      ) : (
-                        <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>أساسي</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                    سحب الصلاحية
+                  </button>
+                ) : (
+                  <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)' }}>أساسي</span>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>

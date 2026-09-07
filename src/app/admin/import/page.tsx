@@ -89,18 +89,11 @@ export default function ImportPage() {
 
   return (
     <div>
-      {/* Header */}
-      <div style={{
-        marginBottom: '2.5rem',
-        borderBottom: '1px solid rgba(242, 158, 19, 0.12)',
-        paddingBottom: '1.25rem',
-      }}>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f7f0e4', marginBottom: '0.25rem' }}>
-          كشف الحساب البنكي
-        </h1>
-        <p style={{ color: 'rgba(247, 240, 228, 0.55)', fontSize: '0.875rem' }}>
-          استيراد المعاملات البنكية إلى قاعدة البيانات
-        </p>
+      <div className="admin-page-head">
+        <div>
+          <h1>كشف الحساب البنكي</h1>
+          <p>استيراد المعاملات البنكية إلى قاعدة البيانات</p>
+        </div>
       </div>
 
       {/* Result Alert */}
@@ -135,7 +128,7 @@ export default function ImportPage() {
       )}
 
       {/* Two Column Section */}
-      <div style={{ display: 'grid', gap: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))' }}>
+      <div className="admin-split">
         {/* CSV Import */}
         <div className="glass-card" style={{ padding: '1.75rem', border: '1px solid rgba(242, 158, 19, 0.2)', background: 'rgba(31, 19, 6, 0.65)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1rem' }}>

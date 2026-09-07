@@ -12,14 +12,23 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
 import {
   MAX_STORED_RECEIPT_BYTES,
+  PORTRAITS_COLLECTION,
+  RECEIPTS_COLLECTION,
+  portraitPointer,
+  portraitWriteFields,
   receiptPointer,
   receiptWriteFields,
 } from '@/lib/firebase/receipts';
 import {
+  isValidEgyptianNationalId,
   isValidEgyptianPhone,
+  isValidEmail,
   isValidInternationalPhone,
   isValidName,
+  isValidShortText,
   normalizePhone,
+  normalizeShortText,
+  sanitizeNationalIdInput,
   sanitizeNationalPhoneInput,
   VALIDATION_MESSAGES,
 } from '@/lib/validation';
@@ -75,6 +84,30 @@ function badRequest(messageAr: string) {
   return NextResponse.json({ error: 'Invalid request', messageAr }, { status: 400 });
 }
 
+async function readStoredImage(
+  file: FormDataEntryValue | null,
+  missingMessage: string
+): Promise<
+  | { bytes: Uint8Array; mimeType: 'image/jpeg' | 'image/png' | 'image/webp' }
+  | NextResponse
+> {
+  if (!(file instanceof File) || file.size === 0) {
+    return badRequest(missingMessage);
+  }
+  if (file.size > MAX_SCREENSHOT_BYTES) {
+    return badRequest(VALIDATION_MESSAGES.uploadFailed);
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const mimeType = sniffImageMime(bytes);
+  if (!mimeType) {
+    return badRequest(missingMessage);
+  }
+  if (bytes.byteLength > MAX_STORED_RECEIPT_BYTES) {
+    return badRequest(VALIDATION_MESSAGES.uploadFailed);
+  }
+  return { bytes, mimeType };
+}
+
 export async function POST(request: NextRequest) {
   const correlationId = randomUUID();
 
@@ -87,15 +120,40 @@ export async function POST(request: NextRequest) {
     const form = await request.formData();
 
     const fullNameRaw = form.get('fullName');
+    const nationalIdRaw = form.get('nationalId');
+    const emailRaw = form.get('email');
     const churchRaw = form.get('church');
+    const eparchyRaw = form.get('eparchy');
+    const confessionFatherRaw = form.get('confessionFather');
+    const confessionFatherChurchRaw = form.get('confessionFatherChurch');
+    const currentServiceRaw = form.get('currentService');
     const phoneRaw = form.get('phoneNumber');
     const whatsappRaw = form.get('whatsappNumber');
     const trackRaw = form.get('track');
     const countryDialRaw = form.get('countryDial');
     const screenshot = form.get('screenshot');
+    const portrait = form.get('portrait');
 
     if (typeof fullNameRaw !== 'string' || typeof churchRaw !== 'string') {
       return badRequest(VALIDATION_MESSAGES.nameRequired);
+    }
+    if (typeof nationalIdRaw !== 'string') {
+      return badRequest(VALIDATION_MESSAGES.nationalIdRequired);
+    }
+    if (typeof emailRaw !== 'string') {
+      return badRequest(VALIDATION_MESSAGES.emailRequired);
+    }
+    if (typeof eparchyRaw !== 'string') {
+      return badRequest(VALIDATION_MESSAGES.eparchyRequired);
+    }
+    if (typeof confessionFatherRaw !== 'string') {
+      return badRequest(VALIDATION_MESSAGES.confessionFatherRequired);
+    }
+    if (typeof confessionFatherChurchRaw !== 'string') {
+      return badRequest(VALIDATION_MESSAGES.confessionFatherChurchRequired);
+    }
+    if (typeof currentServiceRaw !== 'string') {
+      return badRequest(VALIDATION_MESSAGES.currentServiceRequired);
     }
     if (typeof phoneRaw !== 'string' || typeof whatsappRaw !== 'string') {
       return badRequest(VALIDATION_MESSAGES.phoneRequired);
@@ -109,13 +167,37 @@ export async function POST(request: NextRequest) {
     const countryDial = typeof countryDialRaw === 'string' ? countryDialRaw.trim() : '';
 
     const fullName = fullNameRaw.trim().replace(/\s+/g, ' ');
-    const church = churchRaw.trim().replace(/\s+/g, ' ');
+    const nationalId = sanitizeNationalIdInput(nationalIdRaw);
+    const email = emailRaw.trim();
+    const church = normalizeShortText(churchRaw);
+    const eparchy = normalizeShortText(eparchyRaw);
+    const confessionFather = normalizeShortText(confessionFatherRaw);
+    const confessionFatherChurch = normalizeShortText(confessionFatherChurchRaw);
+    const currentService = normalizeShortText(currentServiceRaw);
 
     if (!isValidName(fullName) || fullName.length > MAX_NAME_LENGTH) {
       return badRequest(VALIDATION_MESSAGES.nameTooShort);
     }
-    if (church.length < 2 || church.length > MAX_CHURCH_LENGTH) {
+    if (!isValidEgyptianNationalId(nationalId)) {
+      return badRequest(VALIDATION_MESSAGES.nationalIdInvalid);
+    }
+    if (!isValidEmail(email)) {
+      return badRequest(VALIDATION_MESSAGES.emailInvalid);
+    }
+    if (!isValidShortText(church, 2, MAX_CHURCH_LENGTH)) {
       return badRequest(VALIDATION_MESSAGES.churchRequired);
+    }
+    if (!isValidShortText(eparchy, 2, MAX_CHURCH_LENGTH)) {
+      return badRequest(VALIDATION_MESSAGES.eparchyRequired);
+    }
+    if (!isValidShortText(confessionFather, 2, MAX_CHURCH_LENGTH)) {
+      return badRequest(VALIDATION_MESSAGES.confessionFatherRequired);
+    }
+    if (!isValidShortText(confessionFatherChurch, 2, MAX_CHURCH_LENGTH)) {
+      return badRequest(VALIDATION_MESSAGES.confessionFatherChurchRequired);
+    }
+    if (!isValidShortText(currentService, 2, MAX_CHURCH_LENGTH)) {
+      return badRequest(VALIDATION_MESSAGES.currentServiceRequired);
     }
 
     let phoneNumber: string;
@@ -144,49 +226,56 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!(screenshot instanceof File) || screenshot.size === 0) {
-      return badRequest(VALIDATION_MESSAGES.screenshotRequired);
+    const screenshotImage = await readStoredImage(screenshot, VALIDATION_MESSAGES.screenshotRequired);
+    if (screenshotImage instanceof NextResponse) {
+      return screenshotImage;
     }
-    if (screenshot.size > MAX_SCREENSHOT_BYTES) {
-      return badRequest(VALIDATION_MESSAGES.uploadFailed);
-    }
-
-    const bytes = new Uint8Array(await screenshot.arrayBuffer());
-    const mimeType = sniffImageMime(bytes);
-    if (!mimeType) {
-      return badRequest(VALIDATION_MESSAGES.screenshotRequired);
-    }
-
-    if (bytes.byteLength > MAX_STORED_RECEIPT_BYTES) {
-      return badRequest(VALIDATION_MESSAGES.uploadFailed);
+    const portraitImage = await readStoredImage(portrait, VALIDATION_MESSAGES.portraitRequired);
+    if (portraitImage instanceof NextResponse) {
+      return portraitImage;
     }
 
     const registrantId = randomUUID();
     const paymentScreenshotUrl = receiptPointer(registrantId);
-    const receiptFields = receiptWriteFields(bytes, mimeType);
+    const portraitUrl = portraitPointer(registrantId);
+    const receiptFields = receiptWriteFields(screenshotImage.bytes, screenshotImage.mimeType);
+    const portraitFields = portraitWriteFields(portraitImage.bytes, portraitImage.mimeType);
     const db = getAdminDb();
 
     try {
       await db.runTransaction(async (transaction) => {
         const phoneRef = db.collection('phoneIndex').doc(phoneNumber);
+        const nationalIdRef = db.collection('nationalIdIndex').doc(nationalId);
         const phoneSnap = await transaction.get(phoneRef);
+        const nationalIdSnap = await transaction.get(nationalIdRef);
 
         if (phoneSnap.exists) {
           throw new Error('DUPLICATE_PHONE');
         }
+        if (nationalIdSnap.exists) {
+          throw new Error('DUPLICATE_NATIONAL_ID');
+        }
 
-        transaction.set(db.collection('receipts').doc(registrantId), receiptFields);
+        transaction.set(db.collection(RECEIPTS_COLLECTION).doc(registrantId), receiptFields);
+        transaction.set(db.collection(PORTRAITS_COLLECTION).doc(registrantId), portraitFields);
 
         transaction.set(db.collection('registrants').doc(registrantId), {
           fullName,
+          nationalId,
+          email,
           phoneNumber,
           whatsappNumber,
           church,
+          eparchy,
+          confessionFather,
+          confessionFatherChurch,
+          currentService,
           track: track.id,
           feeAmount: track.amount,
           feeCurrency: track.currency,
           countryDial: isAbroad ? countryDial : null,
           paymentScreenshotUrl,
+          portraitUrl,
           status: 'pending_verification',
           adminNotes: null,
           createdAt: FieldValue.serverTimestamp(),
@@ -194,6 +283,7 @@ export async function POST(request: NextRequest) {
         });
 
         transaction.set(phoneRef, { registrantId });
+        transaction.set(nationalIdRef, { registrantId });
       });
     } catch (txError) {
       if (txError instanceof Error && txError.message === 'DUPLICATE_PHONE') {
@@ -201,6 +291,15 @@ export async function POST(request: NextRequest) {
           {
             error: 'DUPLICATE_PHONE',
             messageAr: VALIDATION_MESSAGES.duplicatePhone,
+          },
+          { status: 409 }
+        );
+      }
+      if (txError instanceof Error && txError.message === 'DUPLICATE_NATIONAL_ID') {
+        return NextResponse.json(
+          {
+            error: 'DUPLICATE_NATIONAL_ID',
+            messageAr: VALIDATION_MESSAGES.duplicateNationalId,
           },
           { status: 409 }
         );

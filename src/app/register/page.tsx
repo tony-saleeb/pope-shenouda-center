@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { compressPaymentScreenshot, UploadProgress } from '@/lib/firebase/storage';
+import { compressPaymentScreenshot, compressPortraitPhoto, UploadProgress } from '@/lib/firebase/storage';
 import {
+  isValidEgyptianNationalId,
   isValidEgyptianPhone,
+  isValidEmail,
   isValidInternationalPhone,
   isValidName,
+  isValidShortText,
   normalizePhone,
+  sanitizeNationalIdInput,
   sanitizeNationalPhoneInput,
   sanitizePhoneInput,
   toPhoneIndexId,
@@ -27,7 +31,8 @@ const STEP_FEES = 1;
 const STEP_NAME = 2;
 const STEP_CHURCH = 3;
 const STEP_PHONE = 4;
-const STEP_PAYMENT = 5;
+const STEP_PHOTO = 5;
+const STEP_PAYMENT = 6;
 
 const NETWORK_ERROR_MESSAGE = 'تعذّر الاتصال بالخدمة، تأكد من الإنترنت وحاول مرة أخرى';
 
@@ -50,6 +55,7 @@ function isPhoneValid(form: RegistrationFormData, kind: 'phone' | 'whatsapp' = '
 interface RegisterResponse {
   registrantId?: string;
   messageAr?: string;
+  error?: string;
 }
 
 /**
@@ -126,24 +132,132 @@ function StepTitle({ step, total }: { step: number; total: number }) {
   );
 }
 
+function ImagePickField({
+  inputId,
+  label,
+  hint,
+  previewUrl,
+  previewAlt,
+  error,
+  onFile,
+  onClear,
+}: {
+  inputId: string;
+  label: string;
+  hint: string;
+  previewUrl: string | null;
+  previewAlt: string;
+  error?: string;
+  onFile: (file: File) => void;
+  onClear: () => void;
+}) {
+  return (
+    <div>
+      <label className="form-label">{label}</label>
+      <p style={{
+        fontSize: '0.8125rem',
+        color: 'rgba(255,255,255,0.45)',
+        marginBottom: '1rem',
+        lineHeight: 1.6,
+      }}>
+        {hint}
+      </p>
+
+      {!previewUrl ? (
+        <div
+          className="upload-zone"
+          onClick={() => document.getElementById(inputId)?.click()}
+        >
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 1rem' }}>
+            <rect width="18" height="18" x="3" y="3" rx="2" />
+            <circle cx="9" cy="9" r="2" />
+            <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+          </svg>
+          <p style={{ fontSize: '1.0625rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '0.5rem' }}>
+            التقط صورة أو اختر من المعرض
+          </p>
+          <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.3)' }}>
+            PNG, JPG حتى ٥ ميجابايت
+          </p>
+        </div>
+      ) : (
+        <div className="upload-zone upload-zone-preview" style={{ position: 'relative' }}>
+          <img
+            src={previewUrl}
+            alt={previewAlt}
+            style={{
+              width: '100%',
+              maxHeight: '16rem',
+              objectFit: 'contain',
+              borderRadius: '0.5rem',
+            }}
+          />
+          <button
+            type="button"
+            onClick={onClear}
+            style={{
+              position: 'absolute',
+              top: '0.5rem',
+              left: '0.5rem',
+              width: '2rem',
+              height: '2rem',
+              borderRadius: '50%',
+              background: 'rgba(239, 68, 68, 0.9)',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '1.25rem',
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      <input
+        id={inputId}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg,image/heic,image/webp"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) onFile(file);
+        }}
+        style={{ display: 'none' }}
+      />
+      {error && <p className="form-error">{error}</p>}
+    </div>
+  );
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<RegistrationFormData>({
     track: '',
     fullName: '',
+    nationalId: '',
+    email: '',
     church: '',
     customChurch: '',
+    eparchy: '',
+    confessionFather: '',
+    confessionFatherChurch: '',
+    currentService: '',
     countryDial: '',
     phoneNumber: '',
     whatsappNumber: '',
     sameAsPhone: true,
+    portraitPhoto: null,
     paymentScreenshot: null,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [portraitPreviewUrl, setPortraitPreviewUrl] = useState<string | null>(null);
 
   const selectedTrack = getTrack(formData.track);
   const isAbroad = formData.track === 'abroad';
@@ -182,10 +296,32 @@ export default function RegisterPage() {
         } else if (!isValidName(formData.fullName)) {
           newErrors.fullName = VALIDATION_MESSAGES.nameTooShort;
         }
+        if (!formData.nationalId) {
+          newErrors.nationalId = VALIDATION_MESSAGES.nationalIdRequired;
+        } else if (!isValidEgyptianNationalId(formData.nationalId)) {
+          newErrors.nationalId = VALIDATION_MESSAGES.nationalIdInvalid;
+        }
+        if (!formData.email.trim()) {
+          newErrors.email = VALIDATION_MESSAGES.emailRequired;
+        } else if (!isValidEmail(formData.email)) {
+          newErrors.email = VALIDATION_MESSAGES.emailInvalid;
+        }
         break;
       case STEP_CHURCH:
-        if (!formData.church.trim()) {
+        if (!isValidShortText(formData.church)) {
           newErrors.church = VALIDATION_MESSAGES.churchRequired;
+        }
+        if (!isValidShortText(formData.eparchy)) {
+          newErrors.eparchy = VALIDATION_MESSAGES.eparchyRequired;
+        }
+        if (!isValidShortText(formData.confessionFather)) {
+          newErrors.confessionFather = VALIDATION_MESSAGES.confessionFatherRequired;
+        }
+        if (!isValidShortText(formData.confessionFatherChurch)) {
+          newErrors.confessionFatherChurch = VALIDATION_MESSAGES.confessionFatherChurchRequired;
+        }
+        if (!isValidShortText(formData.currentService)) {
+          newErrors.currentService = VALIDATION_MESSAGES.currentServiceRequired;
         }
         break;
       case STEP_PHONE:
@@ -207,6 +343,11 @@ export default function RegisterPage() {
               ? VALIDATION_MESSAGES.intlPhoneInvalid
               : VALIDATION_MESSAGES.whatsappInvalid;
           }
+        }
+        break;
+      case STEP_PHOTO:
+        if (!formData.portraitPhoto) {
+          newErrors.portraitPhoto = VALIDATION_MESSAGES.portraitRequired;
         }
         break;
       case STEP_PAYMENT:
@@ -231,32 +372,52 @@ export default function RegisterPage() {
   };
 
   // ─── File selection ──────────────────────────────────────────────
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      updateField('paymentScreenshot', file);
-      const reader = new FileReader();
-      reader.onload = (ev) => setPreviewUrl(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+  const previewFile = (file: File, setter: (url: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = (ev) => setter(ev.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
+  const handlePortraitSelect = (file: File) => {
+    updateField('portraitPhoto', file);
+    previewFile(file, setPortraitPreviewUrl);
+  };
+
+  const handleReceiptSelect = (file: File) => {
+    updateField('paymentScreenshot', file);
+    previewFile(file, setPreviewUrl);
   };
 
   // ─── Submit ──────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validateStep(currentStep)) return;
-    if (!formData.paymentScreenshot) return;
+    if (!formData.paymentScreenshot || !formData.portraitPhoto) return;
 
     setIsSubmitting(true);
     const phone = storedPhone(formData, 'phone');
     const whatsapp = storedPhone(formData, 'whatsapp');
 
-    const abort = (field: 'submit' | 'phoneNumber' | 'paymentScreenshot', message: string) => {
+    const abort = (
+      field: 'submit' | 'phoneNumber' | 'paymentScreenshot' | 'portraitPhoto' | 'nationalId',
+      message: string
+    ) => {
       setIsSubmitting(false);
       setUploadProgress(null);
       setErrors({ [field]: message });
     };
 
     let compressed: Blob;
+    let compressedPortrait: Blob;
+    try {
+      compressedPortrait = await compressPortraitPhoto(formData.portraitPhoto);
+    } catch (error: unknown) {
+      abort(
+        'portraitPhoto',
+        error instanceof Error && error.message ? error.message : VALIDATION_MESSAGES.uploadFailed
+      );
+      setCurrentStep(STEP_PHOTO);
+      return;
+    }
     try {
       compressed = await compressPaymentScreenshot(formData.paymentScreenshot);
     } catch (error: unknown) {
@@ -269,16 +430,28 @@ export default function RegisterPage() {
 
     const body = new FormData();
     body.append('fullName', formData.fullName.trim());
+    body.append('nationalId', formData.nationalId);
+    body.append('email', formData.email.trim());
     body.append('church', formData.church.trim());
+    body.append('eparchy', formData.eparchy.trim());
+    body.append('confessionFather', formData.confessionFather.trim());
+    body.append('confessionFatherChurch', formData.confessionFatherChurch.trim());
+    body.append('currentService', formData.currentService.trim());
     body.append('track', formData.track);
     body.append('countryDial', formData.countryDial);
     body.append('phoneNumber', phone);
     body.append('whatsappNumber', whatsapp);
+    body.append('portrait', compressedPortrait, 'portrait.jpg');
     body.append('screenshot', compressed, 'receipt.jpg');
 
     const { status, payload } = await postRegistration(body, setUploadProgress);
 
     if (status === 409) {
+      if (payload?.error === 'DUPLICATE_NATIONAL_ID') {
+        abort('nationalId', payload?.messageAr ?? VALIDATION_MESSAGES.duplicateNationalId);
+        setCurrentStep(STEP_NAME);
+        return;
+      }
       abort('phoneNumber', payload?.messageAr ?? VALIDATION_MESSAGES.duplicatePhone);
       setCurrentStep(STEP_PHONE);
       return;
@@ -337,36 +510,117 @@ export default function RegisterPage() {
 
       case STEP_NAME:
         return (
-          <div className="fade-in">
-            <label className="form-label" htmlFor="fullName">الاسم ثلاثي على الأقل</label>
-            <input
-              id="fullName"
-              type="text"
-              className={`form-input ${errors.fullName ? 'form-input-error' : ''}`}
-              placeholder="مثال: مينا مجدي جرجس"
-              value={formData.fullName}
-              onChange={(e) => updateField('fullName', e.target.value)}
-              autoFocus
-              autoComplete="name"
-            />
-            {errors.fullName && <p className="form-error">{errors.fullName}</p>}
+          <div className="fade-in form-stack">
+            <div>
+              <label className="form-label" htmlFor="fullName">الاسم ثلاثي على الأقل</label>
+              <input
+                id="fullName"
+                type="text"
+                className={`form-input ${errors.fullName ? 'form-input-error' : ''}`}
+                placeholder="مثال: مينا مجدي جرجس"
+                value={formData.fullName}
+                onChange={(e) => updateField('fullName', e.target.value)}
+                autoFocus
+                autoComplete="name"
+              />
+              {errors.fullName && <p className="form-error">{errors.fullName}</p>}
+            </div>
+            <div>
+              <label className="form-label" htmlFor="nationalId">الرقم القومي</label>
+              <input
+                id="nationalId"
+                type="text"
+                inputMode="numeric"
+                className={`form-input ${errors.nationalId ? 'form-input-error' : ''}`}
+                placeholder="١٤ رقم"
+                value={formData.nationalId}
+                onChange={(e) => updateField('nationalId', sanitizeNationalIdInput(e.target.value))}
+                dir="ltr"
+                autoComplete="off"
+              />
+              {errors.nationalId && <p className="form-error">{errors.nationalId}</p>}
+            </div>
+            <div>
+              <label className="form-label" htmlFor="email">البريد الإلكتروني</label>
+              <input
+                id="email"
+                type="email"
+                className={`form-input ${errors.email ? 'form-input-error' : ''}`}
+                placeholder="name@example.com"
+                value={formData.email}
+                onChange={(e) => updateField('email', e.target.value)}
+                dir="ltr"
+                autoComplete="email"
+              />
+              {errors.email && <p className="form-error">{errors.email}</p>}
+            </div>
           </div>
         );
 
       case STEP_CHURCH:
         return (
-          <div className="fade-in">
-            <label className="form-label" htmlFor="church">الكنيسة</label>
-            <input
-              id="church"
-              type="text"
-              className={`form-input ${errors.church ? 'form-input-error' : ''}`}
-              placeholder="أدخل اسم كنيستك"
-              value={formData.church}
-              onChange={(e) => updateField('church', e.target.value)}
-              autoFocus
-            />
-            {errors.church && <p className="form-error">{errors.church}</p>}
+          <div className="fade-in form-stack">
+            <div>
+              <label className="form-label" htmlFor="church">الكنيسة</label>
+              <input
+                id="church"
+                type="text"
+                className={`form-input ${errors.church ? 'form-input-error' : ''}`}
+                placeholder="أدخل اسم كنيستك"
+                value={formData.church}
+                onChange={(e) => updateField('church', e.target.value)}
+                autoFocus
+              />
+              {errors.church && <p className="form-error">{errors.church}</p>}
+            </div>
+            <div>
+              <label className="form-label" htmlFor="eparchy">الإيبارشية</label>
+              <input
+                id="eparchy"
+                type="text"
+                className={`form-input ${errors.eparchy ? 'form-input-error' : ''}`}
+                placeholder="أدخل اسم الإيبارشية"
+                value={formData.eparchy}
+                onChange={(e) => updateField('eparchy', e.target.value)}
+              />
+              {errors.eparchy && <p className="form-error">{errors.eparchy}</p>}
+            </div>
+            <div>
+              <label className="form-label" htmlFor="confessionFather">أب الاعتراف</label>
+              <input
+                id="confessionFather"
+                type="text"
+                className={`form-input ${errors.confessionFather ? 'form-input-error' : ''}`}
+                placeholder="اسم أب الاعتراف"
+                value={formData.confessionFather}
+                onChange={(e) => updateField('confessionFather', e.target.value)}
+              />
+              {errors.confessionFather && <p className="form-error">{errors.confessionFather}</p>}
+            </div>
+            <div>
+              <label className="form-label" htmlFor="confessionFatherChurch">كنيسة أب الاعتراف</label>
+              <input
+                id="confessionFatherChurch"
+                type="text"
+                className={`form-input ${errors.confessionFatherChurch ? 'form-input-error' : ''}`}
+                placeholder="اسم كنيسة أب الاعتراف"
+                value={formData.confessionFatherChurch}
+                onChange={(e) => updateField('confessionFatherChurch', e.target.value)}
+              />
+              {errors.confessionFatherChurch && <p className="form-error">{errors.confessionFatherChurch}</p>}
+            </div>
+            <div>
+              <label className="form-label" htmlFor="currentService">الخدمة الحالية</label>
+              <input
+                id="currentService"
+                type="text"
+                className={`form-input ${errors.currentService ? 'form-input-error' : ''}`}
+                placeholder="مثال: إفتقاد — كورال — خدمة مدارس الأحد"
+                value={formData.currentService}
+                onChange={(e) => updateField('currentService', e.target.value)}
+              />
+              {errors.currentService && <p className="form-error">{errors.currentService}</p>}
+            </div>
           </div>
         );
 
@@ -523,88 +777,46 @@ export default function RegisterPage() {
           </div>
         );
 
+      case STEP_PHOTO:
+        return (
+          <div className="fade-in">
+            <ImagePickField
+              inputId="portraitInput"
+              label="الصورة الشخصية"
+              hint="صورة واضحة للوجه، ثم اضغط التالي لرفع إيصال الدفع"
+              previewUrl={portraitPreviewUrl}
+              previewAlt="معاينة الصورة الشخصية"
+              error={errors.portraitPhoto}
+              onFile={handlePortraitSelect}
+              onClear={() => {
+                setPortraitPreviewUrl(null);
+                updateField('portraitPhoto', null);
+              }}
+            />
+          </div>
+        );
+
       case STEP_PAYMENT:
         return (
           <div className="fade-in">
-            <label className="form-label">صورة إيصال الدفع</label>
-            <p style={{
-              fontSize: '0.8125rem',
-              color: 'rgba(255,255,255,0.45)',
-              marginBottom: '1rem',
-              lineHeight: 1.6,
-            }}>
-              {selectedTrack?.usesInstapay === false
-                ? 'التقط صورة لإيصال التحويل بالدولار أو اختر من المعرض'
-                : 'التقط صورة لإيصال الدفع من تطبيق InstaPay أو اختر من المعرض'}
-            </p>
-
-            {!previewUrl ? (
-              <div
-                className="upload-zone"
-                onClick={() => document.getElementById('fileInput')?.click()}
-              >
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 1rem' }}>
-                  <rect width="18" height="18" x="3" y="3" rx="2" />
-                  <circle cx="9" cy="9" r="2" />
-                  <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
-                </svg>
-                <p style={{ fontSize: '1.0625rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginBottom: '0.5rem' }}>
-                  التقط صورة أو اختر من المعرض
-                </p>
-                <p style={{ fontSize: '0.8125rem', color: 'rgba(255,255,255,0.3)' }}>
-                  PNG, JPG حتى ٥ ميجابايت
-                </p>
-              </div>
-            ) : (
-              <div className="upload-zone upload-zone-preview" style={{ position: 'relative' }}>
-                <img
-                  src={previewUrl}
-                  alt="معاينة الإيصال"
-                  style={{
-                    width: '100%',
-                    maxHeight: '16rem',
-                    objectFit: 'contain',
-                    borderRadius: '0.5rem',
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPreviewUrl(null);
-                    updateField('paymentScreenshot', null);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: '0.5rem',
-                    left: '0.5rem',
-                    width: '2rem',
-                    height: '2rem',
-                    borderRadius: '50%',
-                    background: 'rgba(239, 68, 68, 0.9)',
-                    border: 'none',
-                    color: 'white',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '1.25rem',
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
-            <input
-              id="fileInput"
-              type="file"
-              accept="image/png,image/jpeg,image/jpg,image/heic,image/webp"
-              onChange={handleFileSelect}
-              style={{ display: 'none' }}
+            <ImagePickField
+              inputId="fileInput"
+              label="صورة إيصال الدفع"
+              hint={
+                selectedTrack?.usesInstapay === false
+                  ? 'التقط صورة لإيصال التحويل بالدولار أو اختر من المعرض'
+                  : 'التقط صورة لإيصال الدفع من تطبيق InstaPay أو اختر من المعرض'
+              }
+              previewUrl={previewUrl}
+              previewAlt="معاينة الإيصال"
+              error={errors.paymentScreenshot}
+              onFile={handleReceiptSelect}
+              onClear={() => {
+                setPreviewUrl(null);
+                updateField('paymentScreenshot', null);
+              }}
             />
-            {errors.paymentScreenshot && <p className="form-error">{errors.paymentScreenshot}</p>}
 
-            {/* Upload progress */}
             {uploadProgress && (
               <div style={{ marginTop: '1rem' }}>
                 <div style={{
@@ -649,13 +861,25 @@ export default function RegisterPage() {
       case STEP_FEES:
         return Boolean(formData.track);
       case STEP_NAME:
-        return isValidName(formData.fullName);
+        return (
+          isValidName(formData.fullName) &&
+          isValidEgyptianNationalId(formData.nationalId) &&
+          isValidEmail(formData.email)
+        );
       case STEP_CHURCH:
-        return formData.church.trim().length > 0;
+        return (
+          isValidShortText(formData.church) &&
+          isValidShortText(formData.eparchy) &&
+          isValidShortText(formData.confessionFather) &&
+          isValidShortText(formData.confessionFatherChurch) &&
+          isValidShortText(formData.currentService)
+        );
       case STEP_PHONE:
         if (!isPhoneValid(formData, 'phone')) return false;
         if (!formData.sameAsPhone && !isPhoneValid(formData, 'whatsapp')) return false;
         return true;
+      case STEP_PHOTO:
+        return formData.portraitPhoto !== null;
       case STEP_PAYMENT:
         return formData.paymentScreenshot !== null;
       default:

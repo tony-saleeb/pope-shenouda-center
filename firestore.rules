@@ -25,6 +25,10 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /nationalIdIndex/{nationalId} {
+      allow read, write: if false;
+    }
+
     match /tickets/{registrantId} {
       allow read, write: if false;
     }
@@ -44,6 +48,10 @@ service cloud.firestore {
     }
 
     match /receipts/{registrantId} {
+      allow read, write: if false;
+    }
+
+    match /portraits/{registrantId} {
       allow read, write: if false;
     }
 

@@ -10,12 +10,14 @@ const JPEG_QUALITY = 0.7;
 
 const RECEIPT_TOO_LARGE = 'حجم الصورة كبير جداً، الحد الأقصى ٥ ميجابايت';
 const RECEIPT_FAILED = 'فشل معالجة صورة الإيصال، برجاء إرفاق صورة أخرى';
+const PORTRAIT_FAILED = 'فشل معالجة الصورة الشخصية، برجاء إرفاق صورة أخرى';
 const RECEIPT_UNREADABLE = 'فشل قراءة ملف الصورة';
 const RECEIPT_UNSUPPORTED = 'صيغة الصورة غير مدعومة، برجاء استخدام JPG أو PNG';
 
 const ARABIC_MESSAGES = new Set([
   RECEIPT_TOO_LARGE,
   RECEIPT_FAILED,
+  PORTRAIT_FAILED,
   RECEIPT_UNREADABLE,
   RECEIPT_UNSUPPORTED,
 ]);
@@ -28,6 +30,14 @@ const ARABIC_MESSAGES = new Set([
  * Rejects rather than falling back to the uncompressed original.
  */
 export async function compressPaymentScreenshot(file: File): Promise<Blob> {
+  return compressJpeg(file, RECEIPT_FAILED);
+}
+
+export async function compressPortraitPhoto(file: File): Promise<Blob> {
+  return compressJpeg(file, PORTRAIT_FAILED);
+}
+
+async function compressJpeg(file: File, failedMessage: string): Promise<Blob> {
   if (file.size > MAX_SOURCE_BYTES) {
     throw new Error(RECEIPT_TOO_LARGE);
   }
@@ -40,7 +50,7 @@ export async function compressPaymentScreenshot(file: File): Promise<Blob> {
     let height = img.naturalHeight || img.height;
 
     if (!width || !height) {
-      throw new Error(RECEIPT_FAILED);
+      throw new Error(failedMessage);
     }
 
     if (width > MAX_WIDTH) {
@@ -54,14 +64,14 @@ export async function compressPaymentScreenshot(file: File): Promise<Blob> {
 
     const ctx = canvas.getContext('2d');
     if (!ctx) {
-      throw new Error(RECEIPT_FAILED);
+      throw new Error(failedMessage);
     }
 
     ctx.drawImage(img, 0, 0, width, height);
 
-    const blob = await canvasToBlob(canvas);
+    const blob = await canvasToBlob(canvas, failedMessage);
     if (blob.size < 1024) {
-      throw new Error(RECEIPT_FAILED);
+      throw new Error(failedMessage);
     }
 
     return blob;
@@ -70,8 +80,8 @@ export async function compressPaymentScreenshot(file: File): Promise<Blob> {
     if (error instanceof Error && ARABIC_MESSAGES.has(error.message)) {
       throw error;
     }
-    console.error('Receipt compression failed:', error);
-    throw new Error(RECEIPT_FAILED);
+    console.error('Image compression failed:', error);
+    throw new Error(failedMessage);
   }
 }
 
@@ -100,12 +110,12 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
+function canvasToBlob(canvas: HTMLCanvasElement, failedMessage: string): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
         if (!blob) {
-          reject(new Error(RECEIPT_FAILED));
+          reject(new Error(failedMessage));
           return;
         }
         resolve(blob);

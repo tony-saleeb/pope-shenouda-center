@@ -23,6 +23,13 @@ export interface Registrant {
   feeAmount?: number | null;
   feeCurrency?: FeeCurrency | null;
   countryDial?: string | null;
+  nationalId?: string | null;
+  email?: string | null;
+  eparchy?: string | null;
+  confessionFather?: string | null;
+  confessionFatherChurch?: string | null;
+  currentService?: string | null;
+  portraitUrl?: string | null;
 }
 
 // ─── Phone Index ───────────────────────────────────────────────────
@@ -83,12 +90,19 @@ export interface ScanResult {
 export interface RegistrationFormData {
   track: RegistrationTrack | '';
   fullName: string;
+  nationalId: string;
+  email: string;
   church: string;
   customChurch: string;
+  eparchy: string;
+  confessionFather: string;
+  confessionFatherChurch: string;
+  currentService: string;
   countryDial: string;
   phoneNumber: string;
   whatsappNumber: string;
   sameAsPhone: boolean;
+  portraitPhoto: File | null;
   paymentScreenshot: File | null;
 }
 
@@ -102,9 +116,10 @@ export interface WizardStep {
 export const WIZARD_STEPS: WizardStep[] = [
   { id: 'track', titleAr: 'نوع التسجيل', titleEn: 'Track' },
   { id: 'fees', titleAr: 'رسوم الدفع', titleEn: 'Fees' },
-  { id: 'name', titleAr: 'الاسم', titleEn: 'Name' },
-  { id: 'church', titleAr: 'الكنيسة', titleEn: 'Church' },
+  { id: 'name', titleAr: 'البيانات الشخصية', titleEn: 'Identity' },
+  { id: 'church', titleAr: 'الكنيسة والخدمة', titleEn: 'Church' },
   { id: 'phone', titleAr: 'رقم الموبايل', titleEn: 'Phone' },
+  { id: 'photo', titleAr: 'الصورة الشخصية', titleEn: 'Portrait' },
   { id: 'payment', titleAr: 'إثبات الدفع', titleEn: 'Payment' },
 ];
 
