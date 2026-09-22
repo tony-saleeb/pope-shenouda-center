@@ -22,6 +22,7 @@ function ReviewThumb({
   title,
   alt,
   onOpen,
+  compact = false,
 }: {
   registrantId: string;
   kind: 'portrait' | 'receipt';
@@ -29,12 +30,14 @@ function ReviewThumb({
   title: string;
   alt: string;
   onOpen: (url: string, name: string) => void;
+  compact?: boolean;
 }) {
   const { user } = useAuth();
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [visible, setVisible] = useState(false);
   const frameRef = useRef<HTMLDivElement>(null);
+  const frameSize = compact ? '4.5rem' : '6rem';
 
   useEffect(() => {
     const node = frameRef.current;
@@ -81,8 +84,8 @@ function ReviewThumb({
   if (failed) {
     return (
       <div style={{
-        width: '6rem',
-        height: '6rem',
+        width: frameSize,
+        height: frameSize,
         borderRadius: '0.75rem',
         background: 'rgba(239, 68, 68, 0.1)',
         border: '1px solid rgba(239, 68, 68, 0.3)',
@@ -106,8 +109,8 @@ function ReviewThumb({
         ref={frameRef}
         className="skeleton"
         style={{
-          width: '6rem',
-          height: '6rem',
+          width: frameSize,
+          height: frameSize,
           borderRadius: '0.75rem',
           flexShrink: 0,
         }}
@@ -120,8 +123,8 @@ function ReviewThumb({
     <div
       onClick={() => onOpen(url, name)}
       style={{
-        width: '6rem',
-        height: '6rem',
+        width: frameSize,
+        height: frameSize,
         borderRadius: '0.75rem',
         overflow: 'hidden',
         flexShrink: 0,
@@ -166,6 +169,7 @@ export default function ReviewPage() {
   const [hasMore, setHasMore] = useState(true);
   const [approvedItems, setApprovedItems] = useState<Set<string>>(new Set());
   const [selectedImageModal, setSelectedImageModal] = useState<{ url: string; name?: string } | null>(null);
+  const [detailsId, setDetailsId] = useState<string | null>(null);
 
   const fetchItems = useCallback(async (cursor?: string | null) => {
     if (!user) return;
@@ -204,6 +208,7 @@ export default function ReviewPage() {
     setLoading(true);
     setItems([]);
     setNextCursor(null);
+    setDetailsId(null);
     void fetchItems();
   }, [activeTab, fetchItems]);
 
@@ -378,7 +383,7 @@ export default function ReviewPage() {
       {loading ? (
         <div style={{ display: 'grid', gap: '1.25rem' }}>
           {[...Array(3)].map((_, i) => (
-            <div key={i} className="glass-card skeleton" style={{ height: '14rem', border: '1px solid rgba(242, 158, 19, 0.2)' }} />
+            <div key={i} className="glass-card skeleton" style={{ height: '5.5rem', border: '1px solid rgba(242, 158, 19, 0.2)' }} />
           ))}
         </div>
       ) : items.length === 0 ? (
@@ -413,112 +418,145 @@ export default function ReviewPage() {
         <div style={{ display: 'grid', gap: '1.25rem' }}>
           {items.map((item) => {
             const isApproved = activeTab === 'approved' || item.data.status === 'approved' || item.data.status === 'auto_approved' || approvedItems.has(item.id);
+            const detailsOpen = detailsId === item.id;
+            const track = getTrack(item.data.track);
+            const hasExtraContact = Boolean(
+              item.data.nationalId ||
+              item.data.email ||
+              (item.data.whatsappNumber && item.data.whatsappNumber !== item.data.phoneNumber)
+            );
 
             return (
               <div
                 key={item.id}
                 className="glass-card admin-review-card"
                 style={{
-                  padding: '1.75rem',
+                  padding: '0.9rem 1rem',
                   border: `1px solid ${isApproved ? 'rgba(16, 185, 129, 0.3)' : 'rgba(242, 158, 19, 0.2)'}`,
                   background: isApproved ? 'rgba(16, 185, 129, 0.04)' : 'rgba(31, 19, 6, 0.65)',
                 }}
               >
-                <div className="admin-review-top">
-                  {/* Registrant Data */}
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-                      <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#f7f0e4' }}>{item.data.fullName}</h3>
+                <div className="admin-review-summary">
+                  {(item.hasReceipt ?? Boolean(item.data.paymentScreenshotUrl)) ? (
+                    <ReviewThumb
+                      registrantId={item.id}
+                      kind="receipt"
+                      name={item.data.fullName}
+                      title="اضغط لمشاهدة الإيصال بوضوح"
+                      alt="إيصال الدفع"
+                      compact
+                      onOpen={(url, name) => setSelectedImageModal({ url, name })}
+                    />
+                  ) : null}
+                  <div className="admin-review-summary-text">
+                    <button
+                      type="button"
+                      className={`admin-review-name${detailsOpen ? ' is-open' : ''}`}
+                      aria-expanded={detailsOpen}
+                      onClick={() => setDetailsId((current) => (current === item.id ? null : item.id))}
+                    >
+                      <span>{item.data.fullName}</span>
+                      <svg className="admin-review-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
+                    </button>
+                    <div className="admin-review-meta">
+                      <span className="admin-review-phone" dir="ltr">{item.data.phoneNumber}</span>
                       {isApproved ? (
-                        <span className="badge badge-approved" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                          <span>تمت الموافقة</span>
-                        </span>
+                        <span className="badge badge-approved">تمت الموافقة</span>
                       ) : (
                         <span className="badge badge-review">بانتظار المراجعة</span>
                       )}
                     </div>
-
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(11rem, 1fr))',
-                      gap: '0.75rem',
-                      fontSize: '0.875rem',
-                      color: 'rgba(247, 240, 228, 0.75)',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M18 22V8a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14" />
-                          <path d="M4 22h16" />
-                          <path d="M12 2v4" />
-                        </svg>
-                        <span>{item.data.church}</span>
-                      </div>
-
-                      {getTrack(item.data.track) && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                          <span>{formatTrackTitle(getTrack(item.data.track)!)}</span>
-                        </div>
-                      )}
-
-                      <div dir="ltr" style={{ textAlign: 'right', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                        <span>{item.data.phoneNumber}</span>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fbba33" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-                          <line x1="12" y1="18" x2="12.01" y2="18" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(12rem, 1fr))',
-                      gap: '0.5rem 1rem',
-                      marginTop: '0.875rem',
-                      fontSize: '0.8125rem',
-                      color: 'rgba(247, 240, 228, 0.7)',
-                    }}>
-                      {item.data.nationalId && (
-                        <div>الرقم القومي: <span dir="ltr">{item.data.nationalId}</span></div>
-                      )}
-                      {item.data.email && (
-                        <div>البريد: <span dir="ltr">{item.data.email}</span></div>
-                      )}
-                      {item.data.eparchy && <div>الإيبارشية: {item.data.eparchy}</div>}
-                      {item.data.confessionFather && <div>أب الاعتراف: {item.data.confessionFather}</div>}
-                      {item.data.confessionFatherChurch && (
-                        <div>كنيسة أب الاعتراف: {item.data.confessionFatherChurch}</div>
-                      )}
-                      {item.data.currentService && <div>الخدمة الحالية: {item.data.currentService}</div>}
-                    </div>
-
-                  </div>
-
-                  <div className="admin-review-thumbs" style={{ display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
-                    {(item.hasPortrait ?? Boolean(item.data.portraitUrl)) ? (
-                      <ReviewThumb
-                        registrantId={item.id}
-                        kind="portrait"
-                        name={item.data.fullName}
-                        title="اضغط لمشاهدة الصورة الشخصية"
-                        alt="الصورة الشخصية"
-                        onOpen={(url, name) => setSelectedImageModal({ url, name })}
-                      />
-                    ) : null}
-                    {(item.hasReceipt ?? Boolean(item.data.paymentScreenshotUrl)) ? (
-                      <ReviewThumb
-                        registrantId={item.id}
-                        kind="receipt"
-                        name={item.data.fullName}
-                        title="اضغط لمشاهدة الإيصال بوضوح"
-                        alt="إيصال الدفع"
-                        onOpen={(url, name) => setSelectedImageModal({ url, name })}
-                      />
-                    ) : null}
                   </div>
                 </div>
+
+                {detailsOpen ? (
+                  <div className="admin-review-drawer">
+                    <section className="admin-group-wrap">
+                      <h3>الكنيسة والخدمة</h3>
+                      <div className="admin-place">
+                        <div className="admin-place-head">
+                          {(item.hasPortrait ?? Boolean(item.data.portraitUrl)) ? (
+                            <ReviewThumb
+                              registrantId={item.id}
+                              kind="portrait"
+                              name={item.data.fullName}
+                              title="اضغط لمشاهدة الصورة الشخصية"
+                              alt="الصورة الشخصية"
+                              compact
+                              onOpen={(url, name) => setSelectedImageModal({ url, name })}
+                            />
+                          ) : (
+                            <span className="admin-place-mark" aria-hidden>
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M3 21h18" />
+                                <path d="M6 21V8l6-4 6 4v13" />
+                                <path d="M10 21v-5h4v5" />
+                              </svg>
+                            </span>
+                          )}
+                          <div className="admin-place-head-text">
+                            <strong>{item.data.church || '—'}</strong>
+                            {item.data.eparchy ? <span>{item.data.eparchy}</span> : null}
+                          </div>
+                        </div>
+                        <div className="admin-place-rows">
+                          {track ? (
+                            <div className="admin-place-row">
+                              <span className="admin-place-k">المسار</span>
+                              <span className="admin-place-v">{formatTrackTitle(track)}</span>
+                            </div>
+                          ) : null}
+                          {item.data.confessionFather ? (
+                            <div className="admin-place-row">
+                              <span className="admin-place-k">أب الاعتراف</span>
+                              <span className="admin-place-v">{item.data.confessionFather}</span>
+                            </div>
+                          ) : null}
+                          {item.data.confessionFatherChurch ? (
+                            <div className="admin-place-row">
+                              <span className="admin-place-k">كنيسة أب الاعتراف</span>
+                              <span className="admin-place-v">{item.data.confessionFatherChurch}</span>
+                            </div>
+                          ) : null}
+                          {item.data.currentService ? (
+                            <div className="admin-place-row">
+                              <span className="admin-place-k">الخدمة</span>
+                              <span className="admin-place-v">{item.data.currentService}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </section>
+
+                    {hasExtraContact ? (
+                    <section className="admin-group-wrap">
+                      <h3>البيانات</h3>
+                      <dl className="admin-group">
+                        {item.data.nationalId ? (
+                          <div className="admin-field">
+                            <dt>الرقم القومي</dt>
+                            <dd><span className="admin-field-value is-ltr" dir="ltr">{item.data.nationalId}</span></dd>
+                          </div>
+                        ) : null}
+                        {item.data.email ? (
+                          <div className="admin-field">
+                            <dt>البريد</dt>
+                            <dd><span className="admin-field-value is-ltr" dir="ltr">{item.data.email}</span></dd>
+                          </div>
+                        ) : null}
+                        {item.data.whatsappNumber && item.data.whatsappNumber !== item.data.phoneNumber ? (
+                          <div className="admin-field">
+                            <dt>واتساب</dt>
+                            <dd><span className="admin-field-value is-ltr" dir="ltr">{item.data.whatsappNumber}</span></dd>
+                          </div>
+                        ) : null}
+                      </dl>
+                    </section>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {/* Action Buttons or WhatsApp share for onsite (انتظامي) track */}
                 {isApproved ? (
@@ -564,7 +602,7 @@ export default function ReviewPage() {
                   </div>
                 ) : (
                   /* Pending — show approve/reject */
-                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1.25rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.85rem', flexWrap: 'wrap' }}>
                     <button
                       className="btn btn-success"
                       onClick={() => handleAction(item.id, 'approve')}
