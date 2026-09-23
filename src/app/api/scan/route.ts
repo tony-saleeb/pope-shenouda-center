@@ -160,6 +160,7 @@ export async function POST(request: NextRequest) {
           usedAt: usedAtIso,
           registrantName,
           church,
+          registrantId: regId,
         };
       }
 
@@ -204,6 +205,7 @@ export async function POST(request: NextRequest) {
         type: 'success' as const,
         registrantName,
         church,
+        registrantId: regId,
       };
     });
 
@@ -212,6 +214,7 @@ export async function POST(request: NextRequest) {
         invalidateAdminReadCache();
         return NextResponse.json({
           type: 'success',
+          registrantId: result.registrantId,
           registrantName: result.registrantName,
           church: result.church,
           message: 'Check-in successful',
@@ -221,6 +224,7 @@ export async function POST(request: NextRequest) {
       case 'already_used':
         return NextResponse.json({
           type: 'already_used',
+          registrantId: result.registrantId,
           registrantName: result.registrantName,
           church: result.church,
           usedAt: result.usedAt,

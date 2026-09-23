@@ -79,6 +79,7 @@ export type ScanResultType = 'success' | 'already_used' | 'invalid_ticket' | 'ta
 
 export interface ScanResult {
   type: ScanResultType;
+  registrantId?: string;
   registrantName?: string;
   church?: string;
   usedAt?: string;
