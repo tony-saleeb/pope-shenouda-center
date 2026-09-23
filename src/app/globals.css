@@ -3070,6 +3070,129 @@ body {
   color: #34d399;
 }
 
+.att-ghost-btn.is-live {
+  background: rgba(242, 158, 19, 0.16);
+  border-color: rgba(242, 158, 19, 0.45);
+  color: #fbba33;
+}
+
+.att-scan {
+  margin-bottom: 1rem;
+}
+
+.att-scan-stage {
+  position: relative;
+  width: min(100%, 22rem);
+  aspect-ratio: 1;
+  margin-inline: auto;
+  border-radius: 1.15rem;
+  overflow: hidden;
+  background: #000;
+  border: 1px solid rgba(242, 158, 19, 0.28);
+}
+
+.att-scan-result {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 1rem;
+  text-align: center;
+  color: #fff;
+}
+
+.att-scan-result strong {
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.att-scan-result span {
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.att-scan-result.is-ok { background: rgba(16, 185, 129, 0.94); }
+.att-scan-result.is-warn { background: rgba(217, 119, 6, 0.94); }
+.att-scan-result.is-bad { background: rgba(220, 38, 38, 0.94); }
+
+.gate-camera {
+  position: absolute;
+  inset: 0;
+  background: #000;
+}
+
+.gate-camera video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gate-camera-finder {
+  position: absolute;
+  inset: 8%;
+  border: 1.5px dashed rgba(251, 186, 51, 0.55);
+  border-radius: 1rem;
+  pointer-events: none;
+}
+
+.gate-camera-finder span {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #fbba33, transparent);
+  box-shadow: 0 0 12px #fbba33;
+}
+
+.gate-camera-torch {
+  position: absolute;
+  top: 0.7rem;
+  left: 0.7rem;
+  z-index: 3;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(242, 158, 19, 0.35);
+  background: rgba(0, 0, 0, 0.45);
+  color: #f7f0e4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.gate-camera-torch.is-on {
+  background: #fbba33;
+  color: #1a0f05;
+}
+
+.gate-camera-wait,
+.gate-camera-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+  padding: 1.25rem;
+  text-align: center;
+  color: rgba(247, 240, 228, 0.75);
+  background: rgba(12, 7, 3, 0.88);
+}
+
+.gate-camera-error p {
+  margin: 0;
+  color: #fca5a5;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
 .att-ghost-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;

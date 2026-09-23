@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth/context';
 import Papa from 'papaparse';
+import { GateCamera } from '@/components/GateCamera';
 import { matchesAdminSearch } from '@/lib/validation';
 import { cairoDateKey, EVENT_TIME_ZONE, type CourseSession } from '@/lib/eventDays';
 import { formatEgyptianPhone } from '@/lib/utils/formatters';
+import { playScanSound } from '@/lib/scanFeedback';
+import type { ScanResult } from '@/lib/types';
 
 interface AttendanceStudent {
   id: string;
@@ -27,7 +30,7 @@ type ViewMode = 'list' | 'grid';
 
 const PLACEHOLDER_UNKNOWN_CHURCH = 'غير محدد';
 const PLACEHOLDER_UNNAMED = 'دارس بدون اسم';
-const POLL_MS = 45_000;
+const POLL_MS = 12_000;
 
 function cairoMonthKey(now: Date = new Date()): string {
   return cairoDateKey(now)?.slice(0, 7) ?? '';
@@ -284,9 +287,14 @@ export default function AttendanceSheetPage() {
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
   const [now, setNow] = useState(() => new Date());
   const [justArrived, setJustArrived] = useState<Set<string>>(() => new Set());
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [gateBusy, setGateBusy] = useState(false);
+  const [gateResult, setGateResult] = useState<ScanResult | null>(null);
   const stripRef = useRef<HTMLDivElement | null>(null);
   const searchRef = useRef<HTMLInputElement | null>(null);
   const prevPresentRef = useRef<{ day: string | null; ids: Set<string> }>({ day: null, ids: new Set() });
+  const reloadRef = useRef<() => void>(() => {});
+  const gateLockRef = useRef(false);
 
   const todayKey = cairoDateKey(new Date()) ?? '';
 
@@ -335,6 +343,9 @@ export default function AttendanceSheetPage() {
       }
     }
 
+    reloadRef.current = () => {
+      void loadAttendance();
+    };
     void loadAttendance();
     const interval = setInterval(() => {
       void loadAttendance();
@@ -345,6 +356,61 @@ export default function AttendanceSheetPage() {
       clearInterval(interval);
     };
   }, [user, todayKey]);
+
+  const markPresent = useCallback((registrantId: string) => {
+    if (!todayKey) return;
+    setStudents((prev) => prev.map((student) => {
+      if (student.id !== registrantId && student.registrantId !== registrantId) return student;
+      if (student.attended[todayKey]) return student;
+      return {
+        ...student,
+        attended: { ...student.attended, [todayKey]: new Date().toISOString() },
+        attendedCount: student.attendedCount + 1,
+      };
+    }));
+  }, [todayKey]);
+
+  const onGateCode = useCallback(async (rawCode: string) => {
+    const qrToken = rawCode.trim();
+    if (!qrToken || !user || gateLockRef.current) return;
+    gateLockRef.current = true;
+    setGateBusy(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch('/api/scan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ qrToken }),
+      });
+      const data = (await response.json()) as ScanResult;
+      setGateResult(data);
+      playScanSound(data.type === 'success' || data.type === 'already_used' || data.type === 'invalid_ticket' || data.type === 'tampered' ? data.type : 'error');
+      if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(data.type === 'success' ? [100, 50, 100] : [250]);
+      }
+      if (data.type === 'success' && data.registrantId) {
+        markPresent(data.registrantId);
+        if (sessions.some((session) => session.id === todayKey)) setFocusDay(todayKey);
+      }
+      reloadRef.current();
+    } catch {
+      setGateResult({
+        type: 'invalid_ticket',
+        message: 'Network error',
+        messageAr: 'خطأ في الاتصال — تأكد من اتصالك بالإنترنت',
+      });
+      playScanSound('error');
+    } finally {
+      window.setTimeout(() => {
+        gateLockRef.current = false;
+        setGateBusy(false);
+        setGateResult(null);
+      }, 2200);
+    }
+  }, [markPresent, sessions, todayKey, user]);
 
   const months = useMemo(() => {
     const byKey = new Map<string, string>();
@@ -664,6 +730,13 @@ export default function AttendanceSheetPage() {
           )}
           <button
             type="button"
+            className={`att-ghost-btn${scannerOpen ? ' is-live' : ''}`}
+            onClick={() => setScannerOpen((open) => !open)}
+          >
+            {scannerOpen ? 'إغلاق الكاميرا' : 'مسح الحضور'}
+          </button>
+          <button
+            type="button"
             className="att-ghost-btn is-export"
             onClick={exportSheet}
             disabled={filteredStudents.length === 0}
@@ -675,6 +748,20 @@ export default function AttendanceSheetPage() {
 
       {loadError && (
         <div className="att-banner is-error">حدث خطأ، برجاء المحاولة مرة أخرى</div>
+      )}
+
+      {scannerOpen && (
+        <section className="att-scan">
+          <div className="att-scan-stage">
+            <GateCamera paused={gateBusy} onDetect={(code) => void onGateCode(code)} />
+            {gateResult && (
+              <div className={`att-scan-result is-${gateResult.type === 'success' ? 'ok' : gateResult.type === 'already_used' ? 'warn' : 'bad'}`}>
+                <strong>{gateResult.messageAr}</strong>
+                {gateResult.registrantName ? <span>{gateResult.registrantName}</span> : null}
+              </div>
+            )}
+          </div>
+        </section>
       )}
 
       <section className={`att-hero${focusIsToday ? ' is-live' : ''}${focusUpcoming ? ' is-soon' : ''}`}>

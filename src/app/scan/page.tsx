@@ -3,60 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import type { ScanResult } from '@/lib/types';
 import Header from '@/components/Header';
-import jsQR from 'jsqr';
-
-// ─── Web Audio API Sound Generator ──────────────────────────────────
-function playScanSound(type: 'success' | 'already_used' | 'invalid_ticket' | 'tampered' | 'error') {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    const now = ctx.currentTime;
-
-    if (type === 'success') {
-      // Pleasant double high chime (Green success)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(880, now);
-      osc.frequency.setValueAtTime(1320, now + 0.08);
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.25);
-    } else if (type === 'already_used') {
-      // Two-tone warning chime (Yellow/Orange used)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(659, now);
-      osc.frequency.setValueAtTime(440, now + 0.12);
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.3);
-    } else {
-      // Low error buzz (Red invalid)
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(220, now);
-      gain.gain.setValueAtTime(0.35, now);
-      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.3);
-    }
-  } catch {
-    // Ignore browser audio restrictions
-  }
-}
+import { GateCamera } from '@/components/GateCamera';
+import { playScanSound } from '@/lib/scanFeedback';
 
 export default function ScanPage() {
   const [passcode, setPasscode] = useState<string>('');
@@ -65,20 +13,9 @@ export default function ScanPage() {
   const [verifying, setVerifying] = useState<boolean>(false);
 
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
-  const [scanning, setScanning] = useState(false);
   const [processing, setProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [manualCode, setManualCode] = useState('');
   const [scanHistory, setScanHistory] = useState<ScanResult[]>([]);
-
-  // Hardware torch state
-  const [supportsTorch, setSupportsTorch] = useState(false);
-  const [torchOn, setTorchOn] = useState(false);
-
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const animationFrameIdRef = useRef<number | null>(null);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
 
   // Synchronous lock refs to block race conditions from fast camera frames
   const processingRef = useRef<boolean>(false);
@@ -123,11 +60,16 @@ export default function ScanPage() {
   const handlePasscodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!passcode.trim()) return;
-    verifyPasscode(passcode.trim());
+    if (navigator.mediaDevices?.getUserMedia) {
+      void navigator.mediaDevices
+        .getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' } } })
+        .then((stream) => stream.getTracks().forEach((track) => track.stop()))
+        .catch(() => undefined);
+    }
+    void verifyPasscode(passcode.trim());
   };
 
   const handleLogout = () => {
-    stopCamera();
     localStorage.removeItem('usher_passcode');
     setAuthenticated(false);
     setPasscode('');
@@ -209,192 +151,6 @@ export default function ScanPage() {
     setProcessing(false);
     processingRef.current = false;
   };
-
-  const stopCamera = () => {
-    if (animationFrameIdRef.current) {
-      cancelAnimationFrame(animationFrameIdRef.current);
-      animationFrameIdRef.current = null;
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-    setScanning(false);
-  };
-
-  // Hardware Torch toggle
-  const toggleTorch = async () => {
-    if (!mediaStreamRef.current) return;
-    const track = mediaStreamRef.current.getVideoTracks()[0];
-    if (!track) return;
-
-    try {
-      const nextTorch = !torchOn;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (track as any).applyConstraints({
-        advanced: [{ torch: nextTorch }],
-      });
-      setTorchOn(nextTorch);
-    } catch (e) {
-      console.warn('Torch constraint error:', e);
-    }
-  };
-
-  // Hyper-Speed 60 FPS RequestAnimationFrame Decode Loop
-  const startDetectionLoop = useCallback(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let detector: any = null;
-    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-      } catch {
-        detector = null;
-      }
-    }
-
-    const canvas = canvasRef.current || document.createElement('canvas');
-    canvasRef.current = canvas;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-    const tick = async () => {
-      const video = videoRef.current;
-
-      if (video && video.readyState === video.HAVE_ENOUGH_DATA && !processingRef.current) {
-        let detectedCode: string | null = null;
-
-        // 1. Primary: Native GPU BarcodeDetector API (Ultra-fast 2ms frame scan)
-        if (detector) {
-          try {
-            const barcodes = await detector.detect(video);
-            if (barcodes && barcodes.length > 0) {
-              detectedCode = barcodes[0].rawValue || barcodes[0].rawValueText;
-            }
-          } catch {
-            // Ignore frame error
-          }
-        }
-
-        // 2. Secondary: Fast 400x400 canvas jsQR fallback
-        if (!detectedCode && ctx) {
-          const vw = video.videoWidth;
-          const vh = video.videoHeight;
-
-          if (vw > 0 && vh > 0) {
-            // Fast fixed 400x400 canvas scaling for 1ms jsQR execution
-            canvas.width = 400;
-            canvas.height = 400;
-            ctx.drawImage(video, 0, 0, 400, 400);
-
-            const imageData = ctx.getImageData(0, 0, 400, 400);
-            const code = jsQR(imageData.data, 400, 400, {
-              inversionAttempts: 'dontInvert',
-            });
-
-            if (code && code.data) {
-              detectedCode = code.data;
-            }
-          }
-        }
-
-        if (detectedCode && !processingRef.current) {
-          handleScanRef.current(detectedCode);
-        }
-      }
-
-      animationFrameIdRef.current = requestAnimationFrame(tick);
-    };
-
-    animationFrameIdRef.current = requestAnimationFrame(tick);
-  }, []);
-
-  // Initialize Camera Stream with 1280x720 ideal constraints
-  const initCamera = useCallback(async () => {
-    stopCamera();
-    setError(null);
-
-    const videoConstraintsOptions: MediaTrackConstraints[] = [
-      {
-        facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-      },
-      {
-        facingMode: { ideal: 'environment' },
-      },
-      {
-        video: true,
-      } as unknown as MediaTrackConstraints,
-    ];
-
-    let stream: MediaStream | null = null;
-    let lastError: unknown = null;
-
-    for (const constraints of videoConstraintsOptions) {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: constraints,
-          audio: false,
-        });
-
-        // Apply continuous autofocus if available
-        const track = stream.getVideoTracks()[0];
-        if (track && 'applyConstraints' in track) {
-          try {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await (track as any).applyConstraints({
-              advanced: [{ focusMode: 'continuous' }],
-            });
-          } catch {
-            // Ignore focus error
-          }
-        }
-
-        // Inspect torch capabilities
-        if (track && 'getCapabilities' in track) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const caps = (track as any).getCapabilities();
-          if (caps.torch) {
-            setSupportsTorch(true);
-          }
-        }
-
-        if (stream) break;
-      } catch (err) {
-        lastError = err;
-      }
-    }
-
-    if (!stream) {
-      console.error('Camera stream error:', lastError);
-      setError('لم نتمكن من الوصول للكاميرا. يرجى التأكد من منح إذن الوصول للكاميرا في إعدادات المتصفح، ثم الضغط على زر "تفعيل الكاميرا".');
-      return;
-    }
-
-    mediaStreamRef.current = stream;
-
-    if (videoRef.current) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.setAttribute('playsinline', 'true');
-      videoRef.current.play().catch(() => {});
-    }
-
-    setScanning(true);
-    startDetectionLoop();
-  }, [startDetectionLoop]);
-
-  // Start Camera when authenticated
-  useEffect(() => {
-    if (!authenticated) return;
-    initCamera();
-
-    return () => {
-      stopCamera();
-    };
-  }, [authenticated, initCamera]);
 
   // ─── Render Passcode Gate ──────────────────────────────────────────
   if (!authenticated) {
@@ -526,29 +282,6 @@ export default function ScanPage() {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              {/* Torch Button */}
-              {supportsTorch && (
-                <button
-                  onClick={toggleTorch}
-                  title="فلاش الكاميرا"
-                  style={{
-                    background: torchOn ? '#fbba33' : 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(242, 158, 19, 0.3)',
-                    color: torchOn ? '#1a0f05' : '#f7f0e4',
-                    padding: '0.375rem 0.625rem',
-                    borderRadius: '0.5rem',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                  </svg>
-                </button>
-              )}
-
               <button
                 onClick={handleLogout}
                 className="btn btn-ghost"
@@ -574,78 +307,7 @@ export default function ScanPage() {
               overflow: 'hidden',
               background: '#000000',
             }}>
-              <video
-                ref={videoRef}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  display: scanning ? 'block' : 'none',
-                }}
-                playsInline
-                muted
-              />
-
-              {/* Laser Viewfinder */}
-              {scanning && !scanResult && (
-                <div style={{
-                  position: 'absolute',
-                  inset: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  pointerEvents: 'none',
-                }}>
-                  <div style={{
-                    width: '85%',
-                    height: '85%',
-                    border: '1.5px dashed rgba(251, 186, 51, 0.4)',
-                    borderRadius: '1rem',
-                    position: 'relative',
-                  }}>
-                    <div style={{
-                      width: '100%',
-                      height: '2px',
-                      background: 'linear-gradient(90deg, transparent, #fbba33, transparent)',
-                      boxShadow: '0 0 12px #fbba33',
-                      position: 'absolute',
-                      top: '50%',
-                      animation: 'pulse 1.5s ease-in-out infinite',
-                    }} />
-                  </div>
-                </div>
-              )}
-
-              {!scanning && !error && (
-                <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-                  <div className="spinner spinner-lg" style={{ margin: '0 auto 1rem', borderTopColor: '#fbba33' }} />
-                  <p style={{ color: 'rgba(247, 240, 228, 0.65)', fontSize: '0.875rem' }}>جاري تشغيل الماسح الفائق...</p>
-                </div>
-              )}
-
-              {error && (
-                <div style={{
-                  position: 'absolute',
-                  inset: 0,
-                  padding: '1.5rem',
-                  textAlign: 'center',
-                  background: 'rgba(19, 12, 5, 0.95)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  zIndex: 20,
-                }}>
-                  <p style={{ color: '#ef4444', fontWeight: 600, fontSize: '0.875rem', marginBottom: '1.25rem', lineHeight: 1.6 }}>{error}</p>
-                  <button
-                    onClick={initCamera}
-                    className="btn btn-primary"
-                    style={{ padding: '0.625rem 1.25rem', fontSize: '0.875rem' }}
-                  >
-                    📷 تفعيل الكاميرا
-                  </button>
-                </div>
-              )}
+              <GateCamera paused={processing || Boolean(scanResult)} onDetect={(code) => void handleScan(code)} />
 
               {/* Full Screen Result Overlay with Instant Audio & Color Feedback */}
               {scanResult && (
