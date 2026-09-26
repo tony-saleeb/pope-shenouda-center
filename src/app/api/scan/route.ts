@@ -9,6 +9,7 @@ import { getLimiter, limitByIp } from '@/lib/ratelimit';
 import { cairoDateKey } from '@/lib/eventDays';
 import { hasCheckInOnDay } from '@/lib/gateCheckIns';
 import { trackRequiresAttendanceQr } from '@/lib/registrationTracks';
+import { isApprovedStatus } from '@/lib/registrantStatus';
 import { invalidateAdminReadCache } from '@/lib/adminReadCache';
 
 /** Max allowed qrToken length — reject unbounded input before it reaches HMAC. */
@@ -135,13 +136,21 @@ export async function POST(request: NextRequest) {
       const regRef = db.collection('registrants').doc(regId);
       const regSnap = await transaction.get(regRef);
       const regData = regSnap.data();
+      const registrantName = regData?.fullName || ticketData.registrantName || 'زائر';
+      const church = regData?.church || ticketData.church || '';
+
+      if (!regSnap.exists || !isApprovedStatus(regData?.status)) {
+        return {
+          type: 'not_approved' as const,
+          registrantName,
+          church,
+          registrantId: regId,
+        };
+      }
 
       if (!trackRequiresAttendanceQr(regData?.track)) {
         return { type: 'not_applicable' as const };
       }
-
-      const registrantName = regData?.fullName || ticketData.registrantName || 'زائر';
-      const church = regData?.church || ticketData.church || '';
 
       const todayKey = cairoDateKey(new Date());
       if (todayKey && hasCheckInOnDay(ticketData, todayKey)) {
@@ -248,6 +257,18 @@ export async function POST(request: NextRequest) {
             type: 'invalid_ticket',
             message: 'Attendance QR not applicable for this track',
             messageAr: 'كود الحضور (QR) متاح فقط لمسار الانتظامي — الحضور في المركز',
+          },
+          { status: 403 }
+        );
+
+      case 'not_approved':
+        return NextResponse.json(
+          {
+            type: 'invalid_ticket',
+            registrantName: result.registrantName,
+            church: result.church,
+            message: 'Registrant is not approved',
+            messageAr: 'هذا التسجيل غير مقبول — لا يمكن تسجيل الحضور',
           },
           { status: 403 }
         );

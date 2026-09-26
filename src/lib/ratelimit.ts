@@ -13,8 +13,35 @@ export function getLimiter(name: string, requests: number, windowDuration: Durat
   });
 }
 
+/** First hop of a forwarding header, only when it looks like an IP. */
+function firstForwardedIp(header: string | null): string | null {
+  if (!header) return null;
+  const candidate = header.split(',')[0]?.trim() ?? '';
+  if (!candidate || candidate.length > 45) return null;
+  if (!/^[0-9A-Fa-f:.]+$/.test(candidate)) return null;
+  return candidate;
+}
+
 /**
- * Limit a request by client IP address derived from `x-forwarded-for`.
+ * Address used as the rate-limit key.
+ * On Vercel, only headers the platform sets are trusted. Vercel overwrites
+ * them from the connection, so a caller cannot pick a fresh bucket.
+ * Off Vercel, forwarding headers are client-controlled and are ignored.
+ */
+export function rateLimitIp(request: NextRequest): string {
+  if (process.env.VERCEL === '1') {
+    return (
+      firstForwardedIp(request.headers.get('x-vercel-forwarded-for')) ??
+      firstForwardedIp(request.headers.get('x-real-ip')) ??
+      firstForwardedIp(request.headers.get('x-forwarded-for')) ??
+      'unknown'
+    );
+  }
+  return 'unknown';
+}
+
+/**
+ * Limit a request by the platform client IP.
  *
  * FAIL CLOSED: If UPSTASH_REDIS_REST_URL is missing, throws an Error at call time
  * to prevent un-throttled public access.
@@ -29,8 +56,7 @@ export async function limitByIp(
     throw new Error('UPSTASH_REDIS_REST_URL is required for rate limiting');
   }
 
-  const forwardedFor = request.headers.get('x-forwarded-for');
-  const ip = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown';
+  const ip = rateLimitIp(request);
 
   const { success, reset } = await limiter.limit(ip);
 

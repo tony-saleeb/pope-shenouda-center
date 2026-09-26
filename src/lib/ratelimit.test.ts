@@ -4,13 +4,18 @@ import { limitByIp } from './ratelimit';
 
 describe('limitByIp', () => {
   const originalEnv = process.env.UPSTASH_REDIS_REST_URL;
+  const originalVercel = process.env.VERCEL;
 
   beforeEach(() => {
     delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.VERCEL;
   });
 
   afterEach(() => {
-    process.env.UPSTASH_REDIS_REST_URL = originalEnv;
+    if (originalEnv === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
+    else process.env.UPSTASH_REDIS_REST_URL = originalEnv;
+    if (originalVercel === undefined) delete process.env.VERCEL;
+    else process.env.VERCEL = originalVercel;
   });
 
   it('fails closed and throws an error if UPSTASH_REDIS_REST_URL is missing', async () => {
@@ -24,10 +29,14 @@ describe('limitByIp', () => {
     );
   });
 
-  it('returns null when rate limit is not exceeded', async () => {
+  it('keys the limiter on the Vercel client IP and ignores a spoofed forwarding header', async () => {
     process.env.UPSTASH_REDIS_REST_URL = 'https://fake-redis.upstash.io';
+    process.env.VERCEL = '1';
     const req = new NextRequest('http://localhost/api/scan', {
-      headers: { 'x-forwarded-for': '203.0.113.195, 70.41.3.18' },
+      headers: {
+        'x-forwarded-for': '203.0.113.195, 70.41.3.18',
+        'x-vercel-forwarded-for': '198.51.100.44',
+      },
     });
 
     const mockLimiter = {
@@ -36,7 +45,21 @@ describe('limitByIp', () => {
 
     const res = await limitByIp(req, mockLimiter);
     expect(res).toBeNull();
-    expect(mockLimiter.limit).toHaveBeenCalledWith('203.0.113.195');
+    expect(mockLimiter.limit).toHaveBeenCalledWith('198.51.100.44');
+  });
+
+  it('does not let a caller choose a fresh bucket off Vercel', async () => {
+    process.env.UPSTASH_REDIS_REST_URL = 'https://fake-redis.upstash.io';
+    const req = new NextRequest('http://localhost/api/scan', {
+      headers: { 'x-forwarded-for': '203.0.113.195' },
+    });
+
+    const mockLimiter = {
+      limit: vi.fn().mockResolvedValue({ success: true, reset: Date.now() + 60000 }),
+    } as any;
+
+    await limitByIp(req, mockLimiter);
+    expect(mockLimiter.limit).toHaveBeenCalledWith('unknown');
   });
 
   it('returns a 429 response with Retry-After header and Arabic message when limit is exceeded', async () => {
