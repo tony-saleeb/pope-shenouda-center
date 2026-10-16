@@ -720,7 +720,7 @@ export default function AttendanceSheetPage() {
       <div className="att-top">
         <div>
           <h1>تسجيل الحضور</h1>
-          <p>قاعة الانتظامي — الثلاثاء والسبت. ابحث عن الاسم أثناء المسح، وتابع من لم يصل.</p>
+          <p>الانتظامي والانتسابي والسماعي — الثلاثاء والسبت. ابحث عن الاسم أثناء المسح، وتابع من لم يصل.</p>
         </div>
         <div className="att-top-actions">
           {todayKey && sessions.some((session) => session.id === todayKey) && !focusIsToday && (
@@ -775,7 +775,7 @@ export default function AttendanceSheetPage() {
             {focusUpcoming
               ? `${waitingStudents.length.toLocaleString('ar-EG')} دارس منتظم — الباب لم يُفتح بعد`
               : totalOnFocus === 0
-                ? 'لا يوجد دارسون انتظاميون بعد'
+                ? 'لا يوجد دارسون بعد'
                 : presentOnFocus === 0
                   ? 'الباب مفتوح — لم يصل أحد بعد'
                   : presentOnFocus === totalOnFocus
@@ -1066,11 +1066,11 @@ export default function AttendanceSheetPage() {
       {filteredStudents.length === 0 ? (
         <div className="glass-card att-empty">
           <p>
-            {students.length === 0 ? 'لا يوجد دارسون انتظاميون بعد' : 'لا توجد نتائج مطابقة للبحث'}
+            {students.length === 0 ? 'لا يوجد دارسون بعد' : 'لا توجد نتائج مطابقة للبحث'}
           </p>
           <span>
             {students.length === 0
-              ? 'بعد قبول مسار الانتظامي سيظهر الحضور هنا كقاعة: من وصل ومن لم يصل'
+              ? 'بعد قبول الطلب سيظهر الحضور هنا: من وصل ومن لم يصل'
               : 'جرّب اسمًا آخر أو أزل تصفية الكنيسة'}
           </span>
         </div>

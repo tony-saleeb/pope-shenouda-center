@@ -3,7 +3,7 @@
  *
  * Always returns the same 200 body for a valid phone so callers cannot
  * enumerate who is registered. Attendance QR is sent to WhatsApp only
- * for the onsite (انتظامي) track, and never includes registrantId.
+ * for انتظامي, انتسابي, and سماعي, and never includes registrantId.
  */
 
 import { NextRequest, NextResponse } from 'next/server';

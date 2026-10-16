@@ -4,7 +4,7 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { verifyTicket } from '@/lib/qr/hmac';
 import { requireUsher } from '@/lib/auth/guards';
 import { getValidPasscode } from '@/app/api/scan/verify-passcode/route';
-import { FieldValue } from 'firebase-admin/firestore';
+import { Timestamp } from 'firebase-admin/firestore';
 import { getLimiter, limitByIp } from '@/lib/ratelimit';
 import { cairoDateKey } from '@/lib/eventDays';
 import { hasCheckInOnDay } from '@/lib/gateCheckIns';
@@ -152,7 +152,9 @@ export async function POST(request: NextRequest) {
         return { type: 'not_applicable' as const };
       }
 
-      const todayKey = cairoDateKey(new Date());
+      const now = new Date();
+      const usedAt = Timestamp.fromDate(now);
+      const todayKey = cairoDateKey(now);
       if (todayKey && hasCheckInOnDay(ticketData, todayKey)) {
         const todayEntry =
           ticketData.checkIns &&
@@ -175,7 +177,7 @@ export async function POST(request: NextRequest) {
 
       const updates: Record<string, unknown> = {
         used: true,
-        usedAt: FieldValue.serverTimestamp(),
+        usedAt,
         usedByUsherId: usherId,
         registrantName,
         church,
@@ -184,7 +186,7 @@ export async function POST(request: NextRequest) {
 
       if (todayKey) {
         updates[`checkIns.${todayKey}`] = {
-          usedAt: FieldValue.serverTimestamp(),
+          usedAt,
           usedByUsherId: usherId,
         };
 
@@ -256,7 +258,7 @@ export async function POST(request: NextRequest) {
           {
             type: 'invalid_ticket',
             message: 'Attendance QR not applicable for this track',
-            messageAr: 'كود الحضور (QR) متاح فقط لمسار الانتظامي — الحضور في المركز',
+            messageAr: 'كود الحضور (QR) غير متاح للمقيمين خارج مصر',
           },
           { status: 403 }
         );

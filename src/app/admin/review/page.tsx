@@ -244,7 +244,7 @@ export default function ReviewPage() {
             }
           } else {
             setNotification({
-              message: '✓ تم قبول الطلب (بدون كود حضور — المسار ليس انتظامي)',
+              message: '✓ تم قبول الطلب (بدون كود حضور — المسار خارج مصر)',
               type: 'success',
             });
           }
@@ -283,7 +283,7 @@ export default function ReviewPage() {
       <div className="admin-page-head">
         <div>
           <h1>مراجعة الطلبات</h1>
-          <p>راجع الإيصال والصورة ثم وافق أو ارفض — كود الحضور للانتظامي عبر واتساب</p>
+          <p>راجع الإيصال والصورة ثم وافق أو ارفض — كود الحضور للانتظامي والانتسابي والسماعي عبر واتساب</p>
         </div>
         <button
           className="btn btn-ghost"

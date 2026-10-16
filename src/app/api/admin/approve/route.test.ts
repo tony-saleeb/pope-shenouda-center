@@ -70,7 +70,28 @@ describe('POST /api/admin/approve', () => {
     expect(sendAutomatedWhatsAppTicket).toHaveBeenCalledWith('01012345678', 'reg-onsite');
   });
 
-  it.each(['online_exam_onsite', 'online_no_exam', 'abroad'] as const)(
+  it.each(['online_exam_onsite', 'online_no_exam'] as const)(
+    'issues attendance QR and WhatsApp for %s',
+    async (track) => {
+      mockRegistrant(track);
+
+      const req = new NextRequest('http://localhost/api/admin/approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrantId: 'reg-other' }),
+      });
+
+      const res = await POST(req);
+      const json = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(json.attendanceQrIssued).toBe(true);
+      expect(issueAttendanceTicket).toHaveBeenCalled();
+      expect(sendAutomatedWhatsAppTicket).toHaveBeenCalled();
+    }
+  );
+
+  it.each(['abroad'] as const)(
     'approves %s without QR or WhatsApp',
     async (track) => {
       mockRegistrant(track);

@@ -47,3 +47,6 @@ next-env.d.ts
 
 # asset originals
 public/_originals
+
+# Signed attendance QR images. These are check-in credentials.
+/attendance-qr

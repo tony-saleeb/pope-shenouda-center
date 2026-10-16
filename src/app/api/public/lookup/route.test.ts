@@ -97,7 +97,25 @@ describe('POST /api/public/lookup', () => {
     expect(sendAutomatedWhatsAppTicket).toHaveBeenCalledWith('01012345678', 'reg-456');
   });
 
-  it.each(['online_exam_onsite', 'online_no_exam', 'abroad'] as const)(
+  it.each(['online_exam_onsite', 'online_no_exam'] as const)(
+    'sends WhatsApp for %s without leaking registrantId',
+    async (track) => {
+      mockDb(track);
+
+      const req = new NextRequest('http://localhost/api/public/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: '01012345678' }),
+      });
+
+      const res = await POST(req);
+      const json = await res.json();
+      expect(json.registrantId).toBeUndefined();
+      expect(sendAutomatedWhatsAppTicket).toHaveBeenCalledWith('01012345678', 'reg-456');
+    }
+  );
+
+  it.each(['abroad'] as const)(
     'does not send WhatsApp for non-onsite track %s',
     async (track) => {
       mockDb(track);
