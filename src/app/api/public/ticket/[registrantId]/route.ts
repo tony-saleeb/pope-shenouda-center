@@ -50,7 +50,7 @@ export async function GET(
       return NextResponse.json(
         {
           error: 'Attendance QR not applicable',
-          messageAr: 'كود الحضور (QR) متاح فقط لمسار الانتظامي — الحضور في المركز',
+          messageAr: 'كود الحضور (QR) غير متاح للمقيمين خارج مصر',
         },
         { status: 403, headers: { 'Cache-Control': 'no-store' } }
       );

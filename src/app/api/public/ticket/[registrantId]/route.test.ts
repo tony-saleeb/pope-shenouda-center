@@ -49,12 +49,12 @@ describe('GET /api/public/ticket/[registrantId]', () => {
     expect(body.messageAr).toBe('التسجيل غير مقبول بعد — التذكرة تظهر فقط للطلبات المقبولة');
   });
 
-  it('returns 403 when an approved registrant is not on the انتظامي track', async () => {
+  it('returns 403 when an approved registrant lives abroad', async () => {
     const mockRegData = {
       status: 'approved',
       fullName: 'Jane Doe',
       church: 'St. George',
-      track: 'online_exam_onsite',
+      track: 'abroad',
     };
 
     (getAdminDb as any).mockReturnValue({
@@ -78,7 +78,7 @@ describe('GET /api/public/ticket/[registrantId]', () => {
 
     expect(res.status).toBe(403);
     const body = await res.json();
-    expect(body.messageAr).toBe('كود الحضور (QR) متاح فقط لمسار الانتظامي — الحضور في المركز');
+    expect(body.messageAr).toBe('كود الحضور (QR) غير متاح للمقيمين خارج مصر');
   });
 
   it('returns 200 with ONLY sanitized ticket fields (fullName, church, qrImageUrl, used, usedAt) and NEVER returns qrToken', async () => {

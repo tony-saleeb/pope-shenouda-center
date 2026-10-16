@@ -1,20 +1,23 @@
 import { describe, it, expect } from 'vitest';
 import {
-  REGISTRATION_TRACKS,
   trackRequiresAttendanceQr,
-  ATTENDANCE_QR_TRACK,
+  ATTENDANCE_QR_TRACKS,
 } from './registrationTracks';
 
 describe('trackRequiresAttendanceQr', () => {
-  it('is true only for the انتظامي onsite track', () => {
-    expect(ATTENDANCE_QR_TRACK).toBe('onsite_exam_onsite');
-    expect(trackRequiresAttendanceQr('onsite_exam_onsite')).toBe(true);
+  it('is true for انتظامي, انتسابي, and سماعي', () => {
+    expect(ATTENDANCE_QR_TRACKS).toEqual([
+      'onsite_exam_onsite',
+      'online_exam_onsite',
+      'online_no_exam',
+    ]);
+    for (const track of ATTENDANCE_QR_TRACKS) {
+      expect(trackRequiresAttendanceQr(track)).toBe(true);
+    }
   });
 
-  it.each(
-    REGISTRATION_TRACKS.filter((id) => id !== 'onsite_exam_onsite')
-  )('is false for non-center track %s', (track) => {
-    expect(trackRequiresAttendanceQr(track)).toBe(false);
+  it('is false for residents abroad', () => {
+    expect(trackRequiresAttendanceQr('abroad')).toBe(false);
   });
 
   it('is false for missing or unknown tracks', () => {
